@@ -12,6 +12,7 @@ import { MAX_MESSAGE_LENGTH, dateError, hoursError, opportunityNameError } from 
 /** A request on the club panel's Hour Requests page. */
 export type ClubRequest = HourRequest & {
   id: number;
+  studentId: number | null;
   categoryId: number | null;
   /** ISO date, e.g. "2026-10-10". */
   isoDate: string;
@@ -87,6 +88,7 @@ export const getClubRequests = async (clubId: number): Promise<ClubRequest[]> =>
 
   return rows.map(({ request, clubName, categoryName, fName, lName }) => ({
     id: request.num,
+    studentId: request.studentId,
     opportunity: request.opportunityName ?? "",
     student: { fName: fName ?? "", lName: lName ?? "" },
     club: clubName ?? undefined,

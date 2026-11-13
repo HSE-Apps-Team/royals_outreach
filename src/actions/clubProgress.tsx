@@ -16,9 +16,10 @@ export type CategoryHours = {
   pending: number;
 };
 
-/** One active member on Hours Progress. */
+/** One member on Hours Progress (active only) or Look Up Students (inactive too). */
 export type StudentProgress = {
   studentId: number;
+  isActive: boolean;
   fName: string;
   lName: string;
   gradClass: number | null;
@@ -77,7 +78,11 @@ const capped = (c: CategoryHours) => {
 
 // Every active member's hours against the categories open to them. A student in a member
 // group gets that group's categories; a student with no group gets every category in the club.
-export const getClubProgress = async (clubId: number): Promise<ClubProgress | null> => {
+// `includeInactive` adds inactive members to the student list; the club totals still leave them out.
+export const getClubProgress = async (
+  clubId: number,
+  { includeInactive = false }: { includeInactive?: boolean } = {},
+): Promise<ClubProgress | null> => {
   const [club, categories, members, groups, groupLinks, logged, added] = await Promise.all([
     getClubConfigById(clubId),
     getClubCategories(clubId),
@@ -128,7 +133,7 @@ export const getClubProgress = async (clubId: number): Promise<ClubProgress | nu
     );
 
   const students: StudentProgress[] = members
-    .filter((m) => m.isActive)
+    .filter((m) => includeInactive || m.isActive)
     .map((m) => {
       const groupCategoryIds = new Set(groupLinks.filter((l) => l.groupId === m.groupId).map((l) => l.categoryId));
       const own: CategoryHours[] = categories
@@ -143,6 +148,7 @@ export const getClubProgress = async (clubId: number): Promise<ClubProgress | nu
 
       return {
         studentId: m.studentId,
+        isActive: m.isActive,
         fName: m.fName,
         lName: m.lName,
         gradClass: m.gradClass,
@@ -159,7 +165,7 @@ export const getClubProgress = async (clubId: number): Promise<ClubProgress | nu
     })
     .sort((a, b) => `${a.lName} ${a.fName}`.localeCompare(`${b.lName} ${b.fName}`, undefined, { sensitivity: "base" }));
 
-  const counted = students.filter((s) => !s.noHoursNeeded);
+  const counted = students.filter((s) => s.isActive && !s.noHoursNeeded);
   const totalCategories: CategoryTotal[] = categories.map((c) => {
     const has = counted.map((s) => s.categories.find((k) => k.categoryId === c.categoryId)).filter((k) => !!k);
     return {

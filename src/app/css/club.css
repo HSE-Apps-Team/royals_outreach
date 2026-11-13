@@ -898,3 +898,12 @@
   margin: 0;
   padding: var(--space-3);
 }
+
+/* ---------------- Look Up Students (/club/[clubId]/lookup) ---------------- */
+
+.club-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  font-family: var(--font-sans);
+}

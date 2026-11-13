@@ -25,10 +25,17 @@ export type StudentClub = {
   goal: number;
   /** Shows the Student Exec badge in Club Affiliations. */
   exec?: boolean;
-  /** Empty means the club tracks general hours only (e.g. Robotics Club). */
-  categories?: { name: string; goal: number }[];
+  /**
+   * Empty means the club tracks general hours only (e.g. Robotics Club). `value` is the
+   * approved hours toward the goal; without it the bar sums this club's approved logs.
+   */
+  categories?: { name: string; goal: number; value?: number }[];
+  /** Hours the club added for the student (no log row). Counted as approved in this club. */
+  added?: number;
   /** Member group inside this club, shown in the club-scoped detail row. */
   group?: string;
+  /** Club view: an inactive member, noted in the banner. */
+  inactive?: boolean;
 };
 
 export type LookupStudent = {
@@ -37,7 +44,8 @@ export type LookupStudent = {
   fName: string;
   lName: string;
   email: string;
-  gradYear: number | string;
+  /** Null when the school has no grad class on file. */
+  gradYear: number | string | null;
   /** School student ID, shown in the club view and matched by search. */
   studentId?: string;
   clubs: StudentClub[];
@@ -227,18 +235,20 @@ function StudentDetail({
   const clubs = club ? student.clubs.filter((c) => c.name === club) : student.clubs;
   const scopedClub = clubs[0];
 
-  const approved = sumHours(logs, (l) => l.status === "Approved");
+  const added = clubs.reduce((total, c) => total + (c.added ?? 0), 0);
+  const approved = sumHours(logs, (l) => l.status === "Approved") + added;
   const pending = sumHours(logs, (l) => isPendingStatus(l.status));
   const denied = sumHours(logs, (l) => l.status === "Denied");
 
-  const earnedIn = (name: string, category?: string) =>
+  // Added hours count toward the club total; per category they come in through `value`
+  const earnedIn = (c: StudentClub, category?: string) =>
     sumHours(
       logs,
       (l) =>
-        l.club === name &&
+        l.club === c.name &&
         l.status === "Approved" &&
         (category === undefined || l.category === category),
-    );
+    ) + (category === undefined ? (c.added ?? 0) : 0);
 
   const categoryBars = (c: StudentClub) =>
     c.categories && c.categories.length > 0 ? (
@@ -246,18 +256,18 @@ function StudentDetail({
         <ProgressBar
           key={k.name}
           label={k.name}
-          value={earnedIn(c.name, k.name)}
+          value={k.value ?? earnedIn(c, k.name)}
           goal={k.goal}
         />
       ))
     ) : (
-      <ProgressBar label="General Hours" value={earnedIn(c.name)} goal={c.goal} />
+      <ProgressBar label="General Hours" value={earnedIn(c)} goal={c.goal} />
     );
 
   const details = [
     { label: "Email", value: student.email },
     { label: "Student ID", value: student.studentId ?? "None" },
-    { label: "Grad Class", value: String(student.gradYear) },
+    { label: "Grad Class", value: student.gradYear === null ? "None" : String(student.gradYear) },
     { label: "Member Group", value: scopedClub?.group ?? "None" },
   ];
 
@@ -265,7 +275,13 @@ function StudentDetail({
     <div className="student-lookup-detail">
       {/* Header */}
       <BannerHeader
-        eyebrow={club ? `Class Of ${student.gradYear}` : `Class Of ${student.gradYear} · ${student.email}`}
+        eyebrow={[
+          student.gradYear !== null && `Class Of ${student.gradYear}`,
+          !club && student.email,
+          club && scopedClub?.inactive && "Inactive Member",
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         title={fullName(student)}
       />
 
@@ -301,7 +317,7 @@ function StudentDetail({
                   title={c.name}
                   titleSize="lg"
                   density="roomy"
-                  subtitle={`${formatHours(earnedIn(c.name))} approved · ${plural(requests, "Request")}`}
+                  subtitle={`${formatHours(earnedIn(c))} approved · ${plural(requests, "Request")}`}
                   trailing={
                     c.exec && (
                       <Badge tone="info" filled icon={false}>
@@ -329,7 +345,7 @@ function StudentDetail({
           <SectionHead>Goal Progress</SectionHead>
           <div className="student-lookup-goals">
             {clubs.map((c) => {
-              const earned = earnedIn(c.name);
+              const earned = earnedIn(c);
               return (
                 <div key={c.name} className="student-lookup-goal">
                   <div className="student-lookup-goal-ring">
