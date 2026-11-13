@@ -31,7 +31,7 @@ export const getSchoolStats = async (): Promise<SchoolStats> => {
         select ${additionalHours.studentId} from ${additionalHours}
       ) serving
     `).then((result) => result.rows),
-    db.select({ n: count() }).from(clubData),
+    db.select({ n: count() }).from(clubData).where(eq(clubData.isDeleted, false)),
     db
       .select({ hours: sum(loggedHours.hours).mapWith(Number) })
       .from(loggedHours)

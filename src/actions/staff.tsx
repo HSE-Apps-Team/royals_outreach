@@ -36,7 +36,7 @@ export const getMyStaffClubs = async (): Promise<StaffClub[]> => {
     .select({ clubId: clubData.clubId, clubName: clubData.clubName })
     .from(clubStaffAssignment)
     .innerJoin(clubData, eq(clubData.clubId, clubStaffAssignment.clubId))
-    .where(eq(clubStaffAssignment.staffId, CURRENT_STAFF_ID))
+    .where(and(eq(clubStaffAssignment.staffId, CURRENT_STAFF_ID), eq(clubData.isDeleted, false)))
     .orderBy(clubData.clubName);
   if (clubs.length === 0) return [];
 

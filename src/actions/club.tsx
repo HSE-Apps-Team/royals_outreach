@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { clubData } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export type ClubConfig = {
   clubId: number;
@@ -19,7 +19,8 @@ export const getClubConfigById = async (clubId: number): Promise<ClubConfig | nu
   const club = await db
     .select()
     .from(clubData)
-    .where(eq(clubData.clubId, clubId));
+    // A deleted club reads as missing, so every club panel page 404s
+    .where(and(eq(clubData.clubId, clubId), eq(clubData.isDeleted, false)));
   if (!club[0]) return null;
 
   // Columns are nullable, so fill in the defaults the config page expects

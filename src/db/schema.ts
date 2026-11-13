@@ -55,6 +55,9 @@ export const clubData = pgTable("club_data", {
   execNeedsHours: boolean("exec_needs_hours"),
   clubLogoFileId: text("club_logo_file_id"),
   doubleDipping:  boolean("double_dipping"),
+  // Admins delete clubs by setting this, so students' logged hours keep the club and
+  // category names. Deleted clubs are hidden from every list and their panel 404s.
+  isDeleted:      boolean("is_deleted").notNull().default(false),
 });
 
 // ---------------- category_data ----------------

@@ -108,6 +108,7 @@ const getMyClubs = async () => {
       and(
         eq(studentClubMembership.studentId, studentId),
         sql`coalesce(${studentClubMembership.membership_status}, true)`,
+        eq(clubData.isDeleted, false),
       ),
     )
     .orderBy(clubData.clubName);

@@ -93,3 +93,11 @@
   flex-direction: column;
   gap: 36px;
 }
+
+/* ===== All Clubs (/staff/clubs, /admin/clubs) ===== */
+
+.all-clubs {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}

@@ -12,8 +12,11 @@ type CreateClubDialogProps = {
   /** Staff offered in the optional Assign Staff select. */
   staffOptions?: PersonName[];
   onClose?: () => void;
-  /** Called with the trimmed club name and the picked staff member (null when none). */
-  onCreate?: (values: { name: string; staff: PersonName | null }) => void;
+  /**
+   * Called with the trimmed club name and the picked staff member (null when none).
+   * Return an error message (e.g. a duplicate name) to show it under Club Name.
+   */
+  onCreate?: (values: { name: string; staff: PersonName | null }) => string | null | void | Promise<string | null | void>;
 };
 
 export default function CreateClubDialog({
@@ -31,11 +34,19 @@ export default function CreateClubDialog({
   const [name, setName] = useState("");
   // The select works on full names; map back to the person on create
   const [staffName, setStaffName] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const trimmed = name.trim();
 
-  function create() {
+  async function create() {
     const staff = staffOptions.find((s) => fullName(s) === staffName) ?? null;
-    onCreate?.({ name: trimmed, staff });
+    setSaving(true);
+    try {
+      const message = await onCreate?.({ name: trimmed, staff });
+      if (message) setError(message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -48,7 +59,7 @@ export default function CreateClubDialog({
           <SaveButton variant="secondary" onClick={onClose}>
             Cancel
           </SaveButton>
-          <SaveButton disabled={!trimmed} onClick={create}>
+          <SaveButton disabled={!trimmed || saving} onClick={create}>
             Create Club
           </SaveButton>
         </>
@@ -59,7 +70,11 @@ export default function CreateClubDialog({
           label="Club Name"
           placeholder="e.g. Chess Club"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          error={error || undefined}
+          onChange={(e) => {
+            setName(e.target.value);
+            setError("");
+          }}
         />
         <Select
           label="Assign Staff (Optional)"

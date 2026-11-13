@@ -58,7 +58,7 @@ import OpportunityCard, { type Opportunity } from "../components/opportunityCard
 import ExportOptions, { type ExportIncludeOption } from "../components/exportOptions";
 import StudentLookup, { type LookupStudent } from "../components/studentLookup";
 import EditHoursDialog from "../components/EditHoursDialog";
-import ClubDirectory, { type DirectoryClub } from "../components/ClubDirectory";
+import ClubDirectory, { type DirectoryClub, type DirectoryStaff } from "../components/ClubDirectory";
 import CreateClubDialog from "../components/CreateClubDialog";
 import AssignStaffDialog from "../components/AssignStaffDialog";
 import UserMenu from "../components/userMenu";
@@ -157,14 +157,15 @@ const STAFF_NAV: SideNavItem[] = [
 
 const ADMIN_NAV: SideNavItem[] = [...STAFF_NAV, { value: "reports", label: "Reports", icon: "bar-chart" }];
 
-const ALL_STAFF: PersonName[] = [
-  { fName: "Iroh", lName: "Bennett" },
-  { fName: "Tom", lName: "Brooks" },
-  { fName: "David", lName: "Chen" },
-  { fName: "Linh", lName: "Nguyen" },
-  { fName: "Chidi", lName: "Okafor" },
-  { fName: "Priya", lName: "Patel" },
+const ALL_STAFF: DirectoryStaff[] = [
+  { id: 1, fName: "Iroh", lName: "Bennett" },
+  { id: 2, fName: "Tom", lName: "Brooks" },
+  { id: 3, fName: "David", lName: "Chen" },
+  { id: 4, fName: "Linh", lName: "Nguyen" },
+  { id: 5, fName: "Chidi", lName: "Okafor" },
+  { id: 6, fName: "Priya", lName: "Patel" },
 ];
+const [IROH, TOM, DAVID, LINH, CHIDI, PRIYA] = ALL_STAFF;
 
 const REQ_PENDING_EMAIL: HourRequest = {
   id: 101,
@@ -319,11 +320,11 @@ const LOOKUP_STUDENTS: LookupStudent[] = [
 ];
 
 const DIRECTORY_CLUBS: DirectoryClub[] = [
-  { name: "Key Club", icon: "heart", members: 64, categories: 2, staff: [{ fName: "Tom", lName: "Brooks" }, { fName: "Priya", lName: "Patel" }] },
-  { name: "Art Club", icon: "palette", members: 41, categories: 2, staff: [{ fName: "David", lName: "Chen" }] },
-  { name: "Robotics Club", icon: "gear", members: 28, categories: 0, staff: [{ fName: "Chidi", lName: "Okafor" }] },
-  { name: "National Honor Society", icon: "award", members: 120, categories: 3, staff: [{ fName: "Iroh", lName: "Bennett" }, { fName: "Linh", lName: "Nguyen" }] },
-  { name: "Chess Club", icon: "puzzle", members: 19, categories: 0, staff: [] },
+  { id: 1, name: "Key Club", icon: "heart", members: 64, categories: 2, staff: [TOM, PRIYA] },
+  { id: 2, name: "Art Club", icon: "palette", members: 41, categories: 2, staff: [DAVID] },
+  { id: 3, name: "Robotics Club", icon: "gear", members: 28, categories: 0, staff: [CHIDI] },
+  { id: 4, name: "National Honor Society", icon: "award", members: 120, categories: 3, staff: [IROH, LINH] },
+  { id: 5, name: "Chess Club", icon: "puzzle", members: 19, categories: 0, staff: [] },
 ];
 
 const ROSTER: RosterStudent[] = [
@@ -1289,10 +1290,10 @@ export const PREVIEW_ENTRIES: PreviewEntry[] = [
             { name: "National Honor Society", icon: "award", total: 1540 },
             { name: "Student Council", icon: "megaphone", total: 820 },
           ],
-          onOpenPanel: cb("onOpenPanel", "(club)"),
+          onOpenPanel: cb("onOpenPanel", "(clubId)"),
         },
       },
-      { label: "Student Exec", props: { title: "Exec Clubs", clubs: [{ name: "Art Club", icon: "palette", total: 310 }], onOpenPanel: cb("onOpenPanel", "(club)") } },
+      { label: "Student Exec", props: { title: "Exec Clubs", clubs: [{ name: "Art Club", icon: "palette", total: 310 }], onOpenPanel: cb("onOpenPanel", "(clubId)") } },
       { label: "Empty", props: { clubs: [], emptyText: "You are not assigned to any clubs yet." } },
     ],
   }),
@@ -1440,8 +1441,8 @@ export const PREVIEW_ENTRIES: PreviewEntry[] = [
           clubs: DIRECTORY_CLUBS,
           allStaff: ALL_STAFF,
           onCreateClub: cb("onCreateClub", "(values)"),
-          onAddStaff: cb("onAddStaff", "(club, staff)"),
-          onRemoveStaff: cb("onRemoveStaff", "(club, staff)"),
+          onAddStaff: cb("onAddStaff", "(clubId, staffId)"),
+          onRemoveStaff: cb("onRemoveStaff", "(clubId, staffId)"),
         },
       },
       {
@@ -1450,10 +1451,10 @@ export const PREVIEW_ENTRIES: PreviewEntry[] = [
           clubs: DIRECTORY_CLUBS,
           allStaff: ALL_STAFF,
           onCreateClub: cb("onCreateClub", "(values)"),
-          onAddStaff: cb("onAddStaff", "(club, staff)"),
-          onRemoveStaff: cb("onRemoveStaff", "(club, staff)"),
-          onDeleteClub: cb("onDeleteClub", "(club)"),
-          onOpenPanel: cb("onOpenPanel", "(club)"),
+          onAddStaff: cb("onAddStaff", "(clubId, staffId)"),
+          onRemoveStaff: cb("onRemoveStaff", "(clubId, staffId)"),
+          onDeleteClub: cb("onDeleteClub", "(clubId)"),
+          onOpenPanel: cb("onOpenPanel", "(clubId)"),
         },
       },
     ],
