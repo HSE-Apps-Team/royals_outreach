@@ -8,6 +8,10 @@ type ProgressBarProps = {
   /** Show "value / goal unit" at the right of the label row. */
   showValue?: boolean;
   unit?: string;
+  /** Hours waiting on verification, drawn as a striped segment after the fill. */
+  pending?: number;
+  /** Turn the fill green once the value reaches the goal. */
+  showMet?: boolean;
   /** Track height in px. */
   height?: number;
   className?: string;
@@ -20,20 +24,26 @@ export default function ProgressBar({
   label = "General Hours",
   showValue = true,
   unit = "hrs",
+  pending = 0,
+  showMet = false,
   height = 16,
   className = "",
   style,
 }: ProgressBarProps) {
   const pct = Math.max(0, Math.min(100, goal ? (value / goal) * 100 : 0));
+  // Pending only fills what is left of the goal
+  const pendingPct = Math.max(0, Math.min(100 - pct, goal ? (pending / goal) * 100 : 0));
+  const met = showMet && goal > 0 && value >= goal;
 
   return (
-    <div className={`progress-bar-box ${className}`.trim()} style={style}>
+    <div className={`progress-bar-box ${met ? "progress-bar-met" : ""} ${className}`.replace(/\s+/g, " ").trim()} style={style}>
       {(label || showValue) && (
         <div className="progress-bar-head">
           <span className="progress-bar-label">{label}</span>
           {showValue && (
             <span className="progress-bar-value">
               {value} / {goal} {unit}
+              {pending > 0 && <span className="progress-bar-pending-text"> (+{pending} pending)</span>}
             </span>
           )}
         </div>
@@ -49,6 +59,9 @@ export default function ProgressBar({
         aria-label={typeof label === "string" ? label : undefined}
       >
         <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
+        {pendingPct > 0 && (
+          <div className="progress-bar-pending" style={{ width: `${pendingPct}%` }} aria-hidden="true" />
+        )}
       </div>
     </div>
   );

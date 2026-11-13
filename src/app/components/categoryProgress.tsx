@@ -10,6 +10,8 @@ export type CategoryGoal = {
   name: string;
   value: number;
   goal: number;
+  /** Hours waiting on verification, shown as stripes after the approved fill. */
+  pending?: number;
   /** Gray line under the bar, "4 students · 75% of goal". */
   line?: React.ReactNode;
 };
@@ -90,6 +92,8 @@ export default function CategoryProgress({
   className = "",
 }: CategoryProgressProps) {
   const general = categories.length === 0;
+  // Every category at its goal (or the general goal, with no categories)
+  const met = general ? goal > 0 && earned >= goal : categories.every((c) => c.value >= c.goal);
   const note = ringNote ?? (pending != null ? `${formatHours(pending)} pending` : null);
   const hasText = heading != null || meta != null || badge != null;
 
@@ -111,6 +115,7 @@ export default function CategoryProgress({
               size={ringSize}
               label={ringLabel}
               sublabel={ringSublabel}
+              met={met}
             />
             {note && <span className="category-progress-note">{note}</span>}
             {hasText && (
@@ -136,7 +141,7 @@ export default function CategoryProgress({
           ) : (
             categories.map((c) => (
               <div key={c.name}>
-                <ProgressBar label={c.name} value={c.value} goal={c.goal} />
+                <ProgressBar label={c.name} value={c.value} goal={c.goal} pending={c.pending} showMet />
                 {c.line && <div className="category-progress-bar-line">{c.line}</div>}
               </div>
             ))

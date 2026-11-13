@@ -13,6 +13,8 @@ type ProgressRingProps = {
   sublabel?: React.ReactNode | null;
   /** Draw the 12-tick clock-dial motif around the ring. */
   ticks?: boolean;
+  /** Turn the ring green to show the goal is met. */
+  met?: boolean;
   className?: string;
   style?: React.CSSProperties;
 };
@@ -25,6 +27,7 @@ export default function ProgressRing({
   label,
   sublabel,
   ticks = true,
+  met = false,
   className = "",
   style,
 }: ProgressRingProps) {
@@ -57,7 +60,7 @@ export default function ProgressRing({
 
   return (
     <div
-      className={`progress-ring ${className}`.trim()}
+      className={`progress-ring ${met ? "progress-ring-met" : ""} ${className}`.replace(/\s+/g, " ").trim()}
       style={{ width: size, ...style }}
       role="img"
       aria-label={`${value} of ${goal} hrs`}

@@ -1038,6 +1038,16 @@
   color: var(--primaryBlue);
 }
 
+/* Goal met: fill, ticks and label turn green */
+.progress-ring-met .progress-ring-fill,
+.progress-ring-met .progress-ring-tick {
+  stroke: var(--successGreen);
+}
+
+.progress-ring-met .progress-ring-label {
+  color: var(--successGreen);
+}
+
 .progress-ring-sublabel {
   margin-top: var(--space-1);
   font-weight: var(--fw-semibold);
@@ -1082,6 +1092,7 @@
 }
 
 .progress-bar-track {
+  display: flex;
   padding: 2px;
   overflow: hidden;
   border: var(--border-cell) solid var(--primaryBlue);
@@ -1094,6 +1105,36 @@
   border-radius: 2px;
   background: var(--primaryBlue);
   transition: width var(--dur-slow) ease;
+}
+
+/* Pending hours: blue stripes right after the approved fill */
+.progress-bar-pending {
+  height: 100%;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--primaryBlue) 0 3px,
+    var(--chartBarLight) 3px 7px
+  );
+  transition: width var(--dur-slow) ease;
+}
+
+.progress-bar-pending-text {
+  font-weight: var(--fw-semibold);
+  color: var(--secondaryGray);
+}
+
+/* Goal met: the fill and value turn green */
+.progress-bar-met .progress-bar-fill {
+  background: var(--successGreen);
+}
+
+.progress-bar-met .progress-bar-track {
+  border-color: var(--successGreen);
+}
+
+.progress-bar-met .progress-bar-value {
+  color: var(--successGreen);
 }
 
 /* ======================= Feedback ======================= */

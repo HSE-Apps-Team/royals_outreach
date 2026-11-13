@@ -2,6 +2,7 @@
 
 import { db } from "@/db";
 import {
+  additionalHours,
   categoryClubGroupAssignment,
   categoryData,
   clubData,
@@ -46,6 +47,20 @@ export type MyRequest = HourRequest & {
   canChange: boolean;
 };
 
+/** One club on Goal Progress. Every club has at least one category (General Hours if nothing else). */
+export type ClubGoalProgress = {
+  clubId: number;
+  clubName: string;
+  /** Approved hours toward the goal, each category counted up to its own goal. */
+  earned: number;
+  goal: number;
+  pending: number;
+  /** Value is approved hours; pending is hours still waiting on verification. */
+  categories: { name: string; value: number; goal: number; pending: number }[];
+  /** An exec in a club where execs do not need hours. */
+  noHoursNeeded: boolean;
+};
+
 export type MyRequestResult = { success: true } | { success: false; error: string };
 
 const ALREADY_VERIFIED = "This request has already been verified, so it can no longer be changed.";
@@ -62,6 +77,9 @@ const IS_UNVERIFIED = sql`(
 //--------------------------------------------------------------------------------------//
 
 // The coordinator's email check comes first, then the club's; with neither, hours count right away.
+// Sums of tenth and quarter hours drift in floating point (0.1 + 0.2), so totals keep two places
+const roundHours = (hours: number) => Math.round(hours * 100) / 100;
+
 const statusFor = (category: LogHoursCategory): HourRequestStatus => {
   if (category.needsEmailVerification) return "Pending Email Verification";
   if (category.needsClubConfirmation) return "Pending Club Verification";
@@ -74,11 +92,16 @@ const statusFor = (category: LogHoursCategory): HourRequestStatus => {
 
 // The student's active clubs. A student in a member group gets that group's categories;
 // a student with no group gets every category in the club.
-export const getLogHoursClubs = async (): Promise<LogHoursClub[]> => {
+const getMyClubs = async () => {
   const studentId = CURRENT_STUDENT_ID;
 
   const clubs = await db
-    .select({ clubId: clubData.clubId, clubName: clubData.clubName })
+    .select({
+      clubId: clubData.clubId,
+      clubName: clubData.clubName,
+      execNeedsHours: clubData.execNeedsHours,
+      isExec: studentClubMembership.is_exec,
+    })
     .from(studentClubMembership)
     .innerJoin(clubData, eq(clubData.clubId, studentClubMembership.clubId))
     .where(
@@ -107,16 +130,91 @@ export const getLogHoursClubs = async (): Promise<LogHoursClub[]> => {
     const groupCategoryIds = new Set(links.map((l) => l.categoryId));
 
     return {
+      ...club,
+      categories: categories.filter(
+        (c) => c.clubId === club.clubId && (links.length === 0 || groupCategoryIds.has(c.categoryId)),
+      ),
+    };
+  });
+};
+
+export const getLogHoursClubs = async (): Promise<LogHoursClub[]> => {
+  const clubs = await getMyClubs();
+
+  return clubs.map((club) => ({
+    clubId: club.clubId,
+    clubName: club.clubName ?? "",
+    categories: club.categories.map((c) => ({
+      categoryId: c.categoryId,
+      categoryName: c.categoryName ?? "",
+      needsEmailVerification: c.needsEmailVerification ?? false,
+      needsClubConfirmation: c.needsClubConfirmation ?? false,
+    })),
+  }));
+};
+
+// Approved and pending hours in each of the student's clubs, against the goals of the
+// categories open to them. Hours in a category outside the student's groups do not count.
+export const getGoalProgress = async (): Promise<ClubGoalProgress[]> => {
+  const clubs = await getMyClubs();
+  if (clubs.length === 0) return [];
+
+  const clubIds = clubs.map((c) => c.clubId);
+  const mine = (table: typeof loggedHours | typeof additionalHours) =>
+    and(eq(table.studentId, CURRENT_STUDENT_ID), inArray(table.clubId, clubIds));
+
+  const [logged, added] = await Promise.all([
+    db
+      .select({
+        clubId: loggedHours.clubId,
+        categoryId: loggedHours.categoryId,
+        status: loggedHours.status,
+        hours: sql<number>`coalesce(sum(${loggedHours.hours}), 0)`.mapWith(Number),
+      })
+      .from(loggedHours)
+      .where(
+        and(
+          mine(loggedHours),
+          inArray(loggedHours.status, ["Approved", "Pending Email Verification", "Pending Club Verification"]),
+        ),
+      )
+      .groupBy(loggedHours.clubId, loggedHours.categoryId, loggedHours.status),
+    db
+      .select({
+        clubId: additionalHours.clubId,
+        categoryId: additionalHours.categoryId,
+        hours: sql<number>`coalesce(sum(${additionalHours.hours}), 0)`.mapWith(Number),
+      })
+      .from(additionalHours)
+      .where(mine(additionalHours))
+      .groupBy(additionalHours.clubId, additionalHours.categoryId),
+  ]);
+
+  const approved = [...logged.filter((r) => r.status === "Approved"), ...added];
+  const pending = logged.filter((r) => r.status !== "Approved");
+  const sumHours = (rows: { hours: number }[]) => roundHours(rows.reduce((total, r) => total + r.hours, 0));
+
+  return clubs.map((club) => {
+    const inClub = (rows: typeof approved) => rows.filter((r) => r.clubId === club.clubId);
+    const inCategory = (rows: typeof approved, categoryId: number) =>
+      sumHours(inClub(rows).filter((r) => r.categoryId === categoryId));
+    const categories = club.categories.map((c) => ({
+      name: c.categoryName ?? "",
+      value: inCategory(approved, c.categoryId),
+      goal: c.goal ?? 0,
+      pending: inCategory(pending, c.categoryId),
+    }));
+    const goal = categories.reduce((total, c) => total + c.goal, 0);
+
+    return {
       clubId: club.clubId,
       clubName: club.clubName ?? "",
-      categories: categories
-        .filter((c) => c.clubId === club.clubId && (links.length === 0 || groupCategoryIds.has(c.categoryId)))
-        .map((c) => ({
-          categoryId: c.categoryId,
-          categoryName: c.categoryName ?? "",
-          needsEmailVerification: c.needsEmailVerification ?? false,
-          needsClubConfirmation: c.needsClubConfirmation ?? false,
-        })),
+      // Hours past a category's goal do not fill another category's share of the club goal
+      earned: roundHours(categories.reduce((total, c) => total + Math.min(c.value, c.goal), 0)),
+      goal,
+      pending: sumHours(inClub(pending)),
+      categories,
+      noHoursNeeded: !!club.isExec && club.execNeedsHours === false,
     };
   });
 };

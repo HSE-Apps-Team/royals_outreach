@@ -559,6 +559,7 @@ export const PREVIEW_ENTRIES: PreviewEntry[] = [
     component: ProgressRing,
     examples: [
       { label: "Default", props: { value: 6, goal: 25, size: 180 } },
+      { label: "Goal Met", props: { value: 25, goal: 25, size: 180, met: true } },
       { label: "Percent Label", props: { value: 12480, goal: 20000, size: 160, label: "62%", sublabel: "of school goal", ticks: false } },
     ],
   }),
@@ -570,6 +571,8 @@ export const PREVIEW_ENTRIES: PreviewEntry[] = [
     component: ProgressBar,
     examples: [
       { label: "Category", width: 460, props: { label: "Service", value: 3, goal: 10 } },
+      { label: "With Pending", width: 460, props: { label: "Service", value: 3, goal: 10, pending: 2 } },
+      { label: "Goal Met", width: 460, props: { label: "Service", value: 10, goal: 10, showMet: true } },
       { label: "Slots (No Label)", width: 240, props: { label: "", showValue: false, value: 4, goal: 12, height: 12 } },
     ],
   }),
@@ -1167,8 +1170,8 @@ export const PREVIEW_ENTRIES: PreviewEntry[] = [
           pending: 2,
           line: "3 hrs approved · 2 hrs pending",
           categories: [
-            { name: "Service", value: 3, goal: 10 },
-            { name: "Event Help", value: 0, goal: 5 },
+            { name: "Service", value: 3, goal: 10, pending: 2 },
+            { name: "Event Help", value: 5, goal: 5 },
           ],
         },
       },

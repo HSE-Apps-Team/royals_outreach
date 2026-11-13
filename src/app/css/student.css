@@ -351,3 +351,11 @@
   font-weight: var(--fw-semibold);
   color: var(--primaryRed);
 }
+
+/* ---------------- Goal Progress (/student/goals) ---------------- */
+
+.goal-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
