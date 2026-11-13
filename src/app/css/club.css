@@ -825,3 +825,76 @@
   font-weight: var(--fw-semibold);
   color: var(--primaryRed);
 }
+
+/* ===== hours progress ===== */
+
+.club-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  font-family: var(--font-sans);
+}
+
+.club-progress-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 480px) {
+  .club-progress-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.club-progress-body {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .club-progress-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.club-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* ===== student search (Add Hours Manually) ===== */
+
+.student-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.student-search-results {
+  max-height: 280px;
+  overflow-y: auto;
+  border: var(--border-cell) solid var(--secondarySilver);
+  border-radius: var(--radius-input);
+}
+
+.student-search-results .list-row:last-child {
+  border-bottom: none;
+}
+
+.student-search-selected {
+  padding: 0 var(--space-2);
+  border: var(--border-input) solid var(--primaryBlue);
+  border-radius: var(--radius-input);
+  background: var(--blueTint);
+}
+
+.student-search-empty {
+  margin: 0;
+  padding: var(--space-3);
+}

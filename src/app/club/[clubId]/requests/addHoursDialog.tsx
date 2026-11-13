@@ -5,7 +5,7 @@ import ModalShell from "@/app/components/ModalShell";
 import SaveButton from "@/app/components/saveButton";
 import Input from "@/app/components/input";
 import Select from "@/app/components/select";
-import { fullName } from "@/lib/personName";
+import StudentSearch from "./studentSearch";
 import { dateError, hoursError, opportunityNameError } from "@/lib/validateLoggedHours";
 
 import type { ClubCategory } from "@/actions/categories";
@@ -24,8 +24,6 @@ type AddHoursDialogProps = {
 const FIELDS = { studentId: "", categoryId: "", opportunityName: "", isoDate: "", hours: "" };
 type Fields = typeof FIELDS;
 type Errors = Partial<Record<keyof Fields, string>>;
-
-const byName = (a: ClubMember, b: ClubMember) => fullName(a).localeCompare(fullName(b), undefined, { sensitivity: "base" });
 
 export default function AddHoursDialog({ clubId, categories, members, today, onClose, onAdded }: AddHoursDialogProps) {
   const [fields, setFields] = useState<Fields>(FIELDS);
@@ -95,15 +93,13 @@ export default function AddHoursDialog({ clubId, categories, members, today, onC
     >
       <div className="edit-hours-grid">
         <div className="edit-hours-full">
-          <Select
-            label="Student"
-            placeholder="Select Student"
-            options={[...members].sort(byName).map((m) => ({
-              value: String(m.studentId),
-              label: `${fullName(m)} · ${m.studentId}`,
-            }))}
+          <StudentSearch
+            members={members}
             value={fields.studentId}
-            onChange={update("studentId")}
+            onChange={(studentId) => {
+              setFields((prev) => ({ ...prev, studentId }));
+              setErrors((prev) => ({ ...prev, studentId: undefined }));
+            }}
             error={errors.studentId}
           />
         </div>
