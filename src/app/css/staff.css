@@ -85,3 +85,11 @@
   font-size: 15px;
   color: var(--textBlack);
 }
+
+/* ===== Staff Home (/staff) ===== */
+
+.staff-home {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}

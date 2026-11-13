@@ -7,7 +7,7 @@ import type { ClubRole, ClubSection } from "@/lib/canSee";
 
 // TODO: role, user and back link come from the session once RBAC is added
 const ROLE: ClubRole = "Staff";
-const BACK_HREF = "/";
+const BACK_HREF = "/staff";
 
 type ClubPanelNavUIProps = {
   /** Shown on Hour Requests; no badge at zero. */

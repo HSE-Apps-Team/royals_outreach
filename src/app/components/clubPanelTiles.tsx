@@ -14,6 +14,8 @@ export type PanelClub = {
   icon: string;
   /** Total approved club hours. Numbers show as "1,540 hrs"; omit to hide the card body. */
   total?: number | string;
+  /** Link for this club's panel button. Takes the place of `panelHref`. */
+  href?: string;
 };
 
 type ClubPanelTilesProps = {
@@ -60,7 +62,7 @@ export default function ClubPanelTiles({
         <div className="club-card-grid">
           {clubs.map((c) => (
             <ClubCard
-              key={c.name}
+              key={c.href ?? c.name}
               name={c.name}
               icon={c.icon}
               className="club-panel-tiles-card"
@@ -69,7 +71,7 @@ export default function ClubPanelTiles({
                   size="sm"
                   icon="box-arrow-up-right"
                   onClick={onOpenPanel ? () => onOpenPanel(c.name) : undefined}
-                  href={panelHref?.(c.name)}
+                  href={c.href ?? panelHref?.(c.name)}
                 >
                   {buttonLabel}
                 </SaveButton>
