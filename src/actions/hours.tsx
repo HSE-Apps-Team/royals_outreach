@@ -41,6 +41,8 @@ export type LogHoursInput = LoggedHoursFields & {
 /** A request on My Requests, with what the edit form needs. */
 export type MyRequest = HourRequest & {
   id: number;
+  clubId: number | null;
+  categoryId: number | null;
   /** ISO date, e.g. "2026-10-10". */
   isoDate: string;
   /** True until a coordinator or the club has verified it. */
@@ -59,7 +61,14 @@ export type ClubGoalProgress = {
   categories: { name: string; value: number; goal: number; pending: number }[];
   /** An exec in a club where execs do not need hours. */
   noHoursNeeded: boolean;
+  isExec: boolean;
+  /** Always true for the student's own pages; Look Up Students also lists inactive memberships. */
+  isActive: boolean;
+  /** Hours the club added for the student (no log row), already counted in the categories. */
+  added: number;
 };
+
+type ClubsOptions = { includeInactive?: boolean };
 
 export type MyRequestResult = { success: true } | { success: false; error: string };
 
@@ -90,24 +99,23 @@ const statusFor = (category: LogHoursCategory): HourRequestStatus => {
 //                                         Read                                         //
 //--------------------------------------------------------------------------------------//
 
-// The student's active clubs. A student in a member group gets that group's categories;
-// a student with no group gets every category in the club.
-const getMyClubs = async () => {
-  const studentId = CURRENT_STUDENT_ID;
-
+// A student's active clubs (inactive ones too with includeInactive). A student in a member
+// group gets that group's categories; a student with no group gets every category in the club.
+const getClubsFor = async (studentId: number, { includeInactive = false }: ClubsOptions = {}) => {
   const clubs = await db
     .select({
       clubId: clubData.clubId,
       clubName: clubData.clubName,
       execNeedsHours: clubData.execNeedsHours,
       isExec: studentClubMembership.is_exec,
+      isActive: sql<boolean>`coalesce(${studentClubMembership.membership_status}, true)`,
     })
     .from(studentClubMembership)
     .innerJoin(clubData, eq(clubData.clubId, studentClubMembership.clubId))
     .where(
       and(
         eq(studentClubMembership.studentId, studentId),
-        sql`coalesce(${studentClubMembership.membership_status}, true)`,
+        includeInactive ? undefined : sql`coalesce(${studentClubMembership.membership_status}, true)`,
         eq(clubData.isDeleted, false),
       ),
     )
@@ -140,7 +148,7 @@ const getMyClubs = async () => {
 };
 
 export const getLogHoursClubs = async (): Promise<LogHoursClub[]> => {
-  const clubs = await getMyClubs();
+  const clubs = await getClubsFor(CURRENT_STUDENT_ID);
 
   return clubs.map((club) => ({
     clubId: club.clubId,
@@ -156,13 +164,20 @@ export const getLogHoursClubs = async (): Promise<LogHoursClub[]> => {
 
 // Approved and pending hours in each of the student's clubs, against the goals of the
 // categories open to them. Hours in a category outside the student's groups do not count.
-export const getGoalProgress = async (): Promise<ClubGoalProgress[]> => {
-  const clubs = await getMyClubs();
+export const getGoalProgress = async (): Promise<ClubGoalProgress[]> => getGoalProgressFor(CURRENT_STUDENT_ID);
+
+// Goal Progress for any student, for staff and admin Look Up Students.
+// TODO: check the session is staff or admin once auth is added
+export const getStudentGoalProgress = async (studentId: number): Promise<ClubGoalProgress[]> =>
+  getGoalProgressFor(studentId, { includeInactive: true });
+
+const getGoalProgressFor = async (studentId: number, options?: ClubsOptions): Promise<ClubGoalProgress[]> => {
+  const clubs = await getClubsFor(studentId, options);
   if (clubs.length === 0) return [];
 
   const clubIds = clubs.map((c) => c.clubId);
   const mine = (table: typeof loggedHours | typeof additionalHours) =>
-    and(eq(table.studentId, CURRENT_STUDENT_ID), inArray(table.clubId, clubIds));
+    and(eq(table.studentId, studentId), inArray(table.clubId, clubIds));
 
   const [logged, added] = await Promise.all([
     db
@@ -216,12 +231,21 @@ export const getGoalProgress = async (): Promise<ClubGoalProgress[]> => {
       pending: sumHours(inClub(pending)),
       categories,
       noHoursNeeded: !!club.isExec && club.execNeedsHours === false,
+      isExec: !!club.isExec,
+      isActive: !!club.isActive,
+      added: sumHours(inClub(added)),
     };
   });
 };
 
 // The student's requests, newest first.
-export const getMyRequests = async (): Promise<MyRequest[]> => {
+export const getMyRequests = async (): Promise<MyRequest[]> => getRequestsFor(CURRENT_STUDENT_ID);
+
+// Every request a student logged, in any club, for staff and admin Look Up Students.
+// TODO: check the session is staff or admin once auth is added
+export const getStudentRequests = async (studentId: number): Promise<MyRequest[]> => getRequestsFor(studentId);
+
+const getRequestsFor = async (studentId: number): Promise<MyRequest[]> => {
   const rows = await db
     .select({
       request: loggedHours,
@@ -232,11 +256,13 @@ export const getMyRequests = async (): Promise<MyRequest[]> => {
     .from(loggedHours)
     .leftJoin(clubData, eq(clubData.clubId, loggedHours.clubId))
     .leftJoin(categoryData, eq(categoryData.categoryId, loggedHours.categoryId))
-    .where(eq(loggedHours.studentId, CURRENT_STUDENT_ID))
+    .where(eq(loggedHours.studentId, studentId))
     .orderBy(desc(loggedHours.date), desc(loggedHours.num));
 
   return rows.map(({ request, clubName, categoryName, canChange }) => ({
     id: request.num,
+    clubId: request.clubId,
+    categoryId: request.categoryId,
     opportunity: request.opportunityName ?? "",
     club: clubName ?? undefined,
     category: categoryName ?? undefined,

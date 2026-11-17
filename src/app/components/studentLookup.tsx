@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Input from "./input";
 import Tabs from "./tabs";
 import BannerHeader from "./bannerHeader";
@@ -32,9 +32,14 @@ export type StudentClub = {
   categories?: { name: string; goal: number; value?: number }[];
   /** Hours the club added for the student (no log row). Counted as approved in this club. */
   added?: number;
+  /**
+   * Approved hours toward the goal, each category counted up to its own goal. Fills the
+   * Goal Progress ring and the General Hours bar; without it they sum this club's approved logs.
+   */
+  earned?: number;
   /** Member group inside this club, shown in the club-scoped detail row. */
   group?: string;
-  /** Club view: an inactive member, noted in the banner. */
+  /** An inactive member: noted in the banner (club view) or with a badge in Club Affiliations. */
   inactive?: boolean;
 };
 
@@ -50,6 +55,8 @@ export type LookupStudent = {
   studentId?: string;
   clubs: StudentClub[];
   logs: HourRequest[];
+  /** Clubs and logs are still being fetched; the detail shows a loading line instead. */
+  loading?: boolean;
 };
 
 type StudentLookupProps = {
@@ -63,6 +70,8 @@ type StudentLookupProps = {
   editable?: boolean;
   /** Called with the edited log when Save Changes is pressed. */
   onSaveLog?: (log: HourRequest) => void;
+  /** Called with the id of the student whose detail is shown, so their data can be fetched. */
+  onShow?: (id: string) => void;
   /** Most student tabs shown at once; extra matches get a "Showing 5 of N" line. */
   maxTabs?: number;
   query?: string;
@@ -133,6 +142,7 @@ export default function StudentLookup({
   club,
   editable = true,
   onSaveLog,
+  onShow,
   maxTabs = 5,
   query,
   onQueryChange,
@@ -153,6 +163,11 @@ export default function StudentLookup({
   );
   const current = selectedId ?? innerSelected;
   const student = matches.find((s) => s.id === current) ?? matches[0];
+
+  const shownId = student?.id;
+  useEffect(() => {
+    if (shownId !== undefined) onShow?.(shownId);
+  }, [shownId, onShow]);
 
   // Keep the selected student on its tab even when it falls past maxTabs
   const shown = matches.slice(0, maxTabs);
@@ -195,7 +210,8 @@ export default function StudentLookup({
       </div>
 
       {/* Detail */}
-      {student && (
+      {student?.loading && <EmptyState size="sm" message="Loading student..." />}
+      {student && !student.loading && (
         <StudentDetail
           student={student}
           club={club}
@@ -261,7 +277,7 @@ function StudentDetail({
         />
       ))
     ) : (
-      <ProgressBar label="General Hours" value={earnedIn(c)} goal={c.goal} />
+      <ProgressBar label="General Hours" value={c.earned ?? earnedIn(c)} goal={c.goal} />
     );
 
   const details = [
@@ -319,10 +335,15 @@ function StudentDetail({
                   density="roomy"
                   subtitle={`${formatHours(earnedIn(c))} approved · ${plural(requests, "Request")}`}
                   trailing={
-                    c.exec && (
-                      <Badge tone="info" filled icon={false}>
-                        Student Exec
-                      </Badge>
+                    (c.exec || c.inactive) && (
+                      <>
+                        {c.inactive && <Badge tone="info">Inactive</Badge>}
+                        {c.exec && (
+                          <Badge tone="info" filled icon={false}>
+                            Student Exec
+                          </Badge>
+                        )}
+                      </>
                     )
                   }
                 />
@@ -345,7 +366,7 @@ function StudentDetail({
           <SectionHead>Goal Progress</SectionHead>
           <div className="student-lookup-goals">
             {clubs.map((c) => {
-              const earned = earnedIn(c);
+              const earned = c.earned ?? earnedIn(c);
               return (
                 <div key={c.name} className="student-lookup-goal">
                   <div className="student-lookup-goal-ring">

@@ -101,3 +101,11 @@
   flex-direction: column;
   gap: 28px;
 }
+
+/* ===== Look Up Students (/staff/lookup) ===== */
+
+.staff-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
