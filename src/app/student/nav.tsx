@@ -10,7 +10,6 @@ const STUDENT_ROUTES: Record<string, string> = {
   hours: "/student/goals",
   req: "/student/requests",
   opps: "/student/opportunities",
-  clubs: "/student/clubs",
   export: "/student/export",
 };
 

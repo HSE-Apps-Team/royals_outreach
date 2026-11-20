@@ -41,7 +41,6 @@ export const STUDENT_NAV_ITEMS: SideNavItem[] = [
   { value: "req", label: "My Requests", shortLabel: "Requests", icon: "inbox", badge: 2 },
   { section: "Clubs" },
   { value: "opps", label: "Opportunities", shortLabel: "Events", icon: "calendar-event" },
-  { value: "clubs", label: "All Clubs", shortLabel: "Clubs", icon: "people" },
   { section: "Account" },
   { value: "export", label: "Export Portfolio", shortLabel: "Export", icon: "file-earmark-arrow-down" },
 ];
