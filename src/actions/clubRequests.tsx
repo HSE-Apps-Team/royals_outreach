@@ -6,7 +6,7 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import type { HourRequest, HourRequestStatus } from "@/app/components/requestRow";
 import { formatDate } from "@/lib/formatDate";
-import { schoolToday } from "@/lib/schoolDate";
+import { schoolDateOf, schoolToday } from "@/lib/schoolDate";
 import { MAX_MESSAGE_LENGTH, dateError, hoursError, opportunityNameError } from "@/lib/validateLoggedHours";
 
 /** A request on the club panel's Hour Requests page. */
@@ -16,6 +16,20 @@ export type ClubRequest = HourRequest & {
   categoryId: number | null;
   /** ISO date, e.g. "2026-10-10". */
   isoDate: string;
+  /** The school's date the student submitted it, or null for rows logged before that was recorded. */
+  submittedOn: string | null;
+  /** Added by a club exec with Add Hours Manually (the only way to log without an organization). */
+  isManual: boolean;
+  studentEmail?: string;
+};
+
+/** A request as it was before a review, so Undo can put it back. */
+export type ClubRequestSnapshot = {
+  id: number;
+  status: HourRequestStatus;
+  denyMessage: string | null;
+  coordinatorName: string | null;
+  coordinatorEmail: string | null;
 };
 
 export type ClubRequestEdit = {
@@ -36,12 +50,14 @@ export type ManualHoursInput = {
 };
 
 export type ClubRequestResult = { success: true } | { success: false; error: string };
+export type ClubBulkResult = { success: true; changed: number } | { success: false; error: string };
 
 const PENDING_STATUSES: HourRequestStatus[] = ["Pending Email Verification", "Pending Club Verification"];
 const STATUSES: HourRequestStatus[] = [...PENDING_STATUSES, "Approved", "Denied"];
 
 const ALREADY_REVIEWED = "This request was already reviewed. The list has been updated.";
 const NOT_FOUND = "This request no longer exists. The list has been updated.";
+const MAX_BULK = 500;
 
 // A coordinator on a request past the email step means they verified it, so one who never
 // answered cannot stay on the request when an exec decides it without them.
@@ -56,6 +72,12 @@ const DROP_UNVERIFIED_COORDINATOR = {
 
 const isClubRequest = (clubId: number, requestId: number) =>
   and(eq(loggedHours.num, requestId), eq(loggedHours.clubId, clubId));
+
+const cleanIds = (ids: number[]) =>
+  Array.isArray(ids) ? [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))] : [];
+
+const denyMessageError = (denyMessage: string) =>
+  denyMessage.length > MAX_MESSAGE_LENGTH ? `Keep the deny message under ${MAX_MESSAGE_LENGTH} characters.` : null;
 
 const isInClub = async (clubId: number, categoryId: number) => {
   const [category] = await db
@@ -78,6 +100,7 @@ export const getClubRequests = async (clubId: number): Promise<ClubRequest[]> =>
       categoryName: categoryData.categoryName,
       fName: studentUserData.fName,
       lName: studentUserData.lName,
+      studentEmail: studentUserData.email,
     })
     .from(loggedHours)
     .leftJoin(clubData, eq(clubData.clubId, loggedHours.clubId))
@@ -86,7 +109,7 @@ export const getClubRequests = async (clubId: number): Promise<ClubRequest[]> =>
     .where(eq(loggedHours.clubId, clubId))
     .orderBy(desc(loggedHours.date), desc(loggedHours.num));
 
-  return rows.map(({ request, clubName, categoryName, fName, lName }) => ({
+  return rows.map(({ request, clubName, categoryName, fName, lName, studentEmail }) => ({
     id: request.num,
     studentId: request.studentId,
     opportunity: request.opportunityName ?? "",
@@ -97,6 +120,9 @@ export const getClubRequests = async (clubId: number): Promise<ClubRequest[]> =>
     date: formatDate(request.date, "short"),
     fullDate: formatDate(request.date),
     isoDate: request.date ?? "",
+    submittedOn: request.submittedAt ? schoolDateOf(request.submittedAt) : null,
+    isManual: !request.orgName,
+    studentEmail: studentEmail ?? undefined,
     hours: request.hours ?? 0,
     status: request.status as HourRequestStatus,
     hasPhoto: !!request.imageId,
@@ -140,9 +166,8 @@ export const denyClubRequest = async (
   message: string,
 ): Promise<ClubRequestResult> => {
   const denyMessage = String(message ?? "").trim();
-  if (denyMessage.length > MAX_MESSAGE_LENGTH) {
-    return { success: false, error: `Keep the deny message under ${MAX_MESSAGE_LENGTH} characters.` };
-  }
+  const problem = denyMessageError(denyMessage);
+  if (problem) return { success: false, error: problem };
 
   const updated = await db
     .update(loggedHours)
@@ -152,6 +177,94 @@ export const denyClubRequest = async (
 
   refresh();
   return updated.length > 0 ? { success: true } : { success: false, error: ALREADY_REVIEWED };
+};
+
+// The bulk bar's Approve Selected. Rows someone else already reviewed are skipped.
+export const approveClubRequests = async (clubId: number, ids: number[]): Promise<ClubBulkResult> => {
+  const requestIds = cleanIds(ids);
+  if (requestIds.length === 0) return { success: false, error: "Select at least one request." };
+  if (requestIds.length > MAX_BULK) return { success: false, error: `Select ${MAX_BULK} requests or fewer.` };
+
+  const updated = await db
+    .update(loggedHours)
+    .set({ status: "Approved", denyMessage: null, ...DROP_UNVERIFIED_COORDINATOR })
+    .where(
+      and(
+        eq(loggedHours.clubId, clubId),
+        inArray(loggedHours.num, requestIds),
+        inArray(loggedHours.status, PENDING_STATUSES),
+      ),
+    )
+    .returning({ num: loggedHours.num });
+
+  refresh();
+  return updated.length > 0 ? { success: true, changed: updated.length } : { success: false, error: ALREADY_REVIEWED };
+};
+
+// The bulk bar's Deny Selected, with one message for every student.
+export const denyClubRequests = async (clubId: number, ids: number[], message: string): Promise<ClubBulkResult> => {
+  const requestIds = cleanIds(ids);
+  if (requestIds.length === 0) return { success: false, error: "Select at least one request." };
+  if (requestIds.length > MAX_BULK) return { success: false, error: `Select ${MAX_BULK} requests or fewer.` };
+  const denyMessage = String(message ?? "").trim();
+  const problem = denyMessageError(denyMessage);
+  if (problem) return { success: false, error: problem };
+
+  const updated = await db
+    .update(loggedHours)
+    .set({ status: "Denied", denyMessage: denyMessage || null, ...DROP_UNVERIFIED_COORDINATOR })
+    .where(
+      and(
+        eq(loggedHours.clubId, clubId),
+        inArray(loggedHours.num, requestIds),
+        inArray(loggedHours.status, PENDING_STATUSES),
+      ),
+    )
+    .returning({ num: loggedHours.num });
+
+  refresh();
+  return updated.length > 0 ? { success: true, changed: updated.length } : { success: false, error: ALREADY_REVIEWED };
+};
+
+// Undo for approve and deny. A row only goes back while it still has the status the review
+// set, so an undo never overwrites a later change by someone else.
+export const restoreClubRequests = async (
+  clubId: number,
+  snapshots: ClubRequestSnapshot[],
+  reviewedStatus: "Approved" | "Denied",
+): Promise<ClubBulkResult> => {
+  const valid = (Array.isArray(snapshots) ? snapshots : []).filter(
+    (s) => Number.isInteger(s?.id) && s.id > 0 && PENDING_STATUSES.includes(s.status),
+  );
+  if (valid.length === 0 || valid.length > MAX_BULK || !["Approved", "Denied"].includes(reviewedStatus)) {
+    return { success: false, error: "Nothing to undo." };
+  }
+
+  const text = (value: unknown, max: number) => {
+    const clean = typeof value === "string" ? value.trim() : "";
+    return clean ? clean.slice(0, max) : null;
+  };
+
+  const restored = await Promise.all(
+    valid.map((s) =>
+      db
+        .update(loggedHours)
+        .set({
+          status: s.status,
+          denyMessage: text(s.denyMessage, MAX_MESSAGE_LENGTH),
+          coordinatorName: text(s.coordinatorName, 200),
+          coordinatorEmail: text(s.coordinatorEmail, 320),
+        })
+        .where(and(isClubRequest(clubId, s.id), eq(loggedHours.status, reviewedStatus)))
+        .returning({ num: loggedHours.num }),
+    ),
+  );
+
+  refresh();
+  const changed = restored.reduce((sum, rows) => sum + rows.length, 0);
+  return changed > 0
+    ? { success: true, changed }
+    : { success: false, error: "These requests changed since your review, so they were not undone." };
 };
 
 //--------------------------------------------------------------------------------------//
@@ -245,6 +358,7 @@ export const addClubHours = async (
       date: input.isoDate,
       hours: Number(hours),
       status: "Approved",
+      submittedAt: new Date(),
     })
     .returning({ num: loggedHours.num });
 

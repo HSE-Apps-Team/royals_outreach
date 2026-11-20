@@ -4,15 +4,28 @@ import { createContext, useCallback, useContext, useState } from "react";
 
 export type ToastType = "success" | "danger" | "warning" | "info";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+export interface ToastOptions {
+  /** A button in the toast, e.g. Undo. Clicking it also closes the toast. */
+  action?: ToastAction;
+  /** How long the toast stays up, in milliseconds. */
+  duration?: number;
+}
+
 export interface Toast {
   id: number;
   message: string;
   type: ToastType;
+  action?: ToastAction;
 }
 
 export interface ToastContextType {
   toasts: Toast[];
-  showToast: (message: string, type?: ToastType) => void;
+  showToast: (message: string, type?: ToastType, options?: ToastOptions) => void;
   removeToast: (id: number) => void;
 }
 
@@ -30,16 +43,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: string, type: ToastType = "success") => {
+    (message: string, type: ToastType = "success", options: ToastOptions = {}) => {
       const id = ++toastIdCounter;
 
       setToasts((prev) => {
-        const next = [...prev, { id, message, type }];
+        const next = [...prev, { id, message, type, action: options.action }];
         // Only keep the most recent MAX_VISIBLE_TOASTS on screen at once
         return next.slice(-MAX_VISIBLE_TOASTS);
       });
 
-      setTimeout(() => removeToast(id), 4000);
+      setTimeout(() => removeToast(id), options.duration ?? 4000);
     },
     [removeToast],
   );

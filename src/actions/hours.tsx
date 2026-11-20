@@ -332,6 +332,7 @@ export const logHours = async (
     coordinatorEmail: category.needsEmailVerification ? fields.coordinatorEmail : null,
     optionalMessage: fields.message || null,
     status,
+    submittedAt: new Date(),
   });
 
   refresh();

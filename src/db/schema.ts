@@ -1,4 +1,4 @@
-import { pgTable, integer, numeric, text, boolean, date, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, integer, numeric, text, boolean, date, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
 // Hours allow quarter, half and tenth hours (0.25, 0.5, 0.6), so they are stored as
@@ -165,6 +165,8 @@ export const loggedHours = pgTable("logged_hours", {
   denyMessage:      text("deny_message"),
   status:           text("status"),
   imageId:          text("image_id"),
+  // Null on rows logged before this column was added.
+  submittedAt:      timestamp("submitted_at", { withTimezone: true }).defaultNow(),
 });
 
 // ---------------- additional_hours ----------------

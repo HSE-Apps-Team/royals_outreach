@@ -1,30 +1,38 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState, type ReactNode } from "react";
+import Image from "next/image";
 import ClubSectionHeader from "@/app/components/clubSectionHeader";
 import SaveButton from "@/app/components/saveButton";
 import Tabs from "@/app/components/tabs";
 import FilterBar from "@/app/components/filterBar";
 import Input from "@/app/components/input";
-import RequestRow from "@/app/components/requestRow";
-import DetailList, { type DetailItem } from "@/app/components/detailList";
-import EmptyState from "@/app/components/emptyState";
+import Pager from "@/app/components/pager";
+import ModalShell from "@/app/components/ModalShell";
 import ConfirmDialog from "@/app/components/ConfirmDialog";
 import EditHoursDialog from "@/app/components/EditHoursDialog";
+import StudentSummaryPanel, { type StudentSummaryRequest } from "@/app/components/StudentSummaryPanel";
 import AddHoursDialog from "./addHoursDialog";
+import RequestTableRow, { type RowFlag } from "./requestTableRow";
+import lionHead from "@/app/assets/lionHead.png";
 import "@/app/css/club.css";
 import { useToast } from "@/app/context/ToastContext";
 import { formatHours } from "@/lib/formatHours";
+import { plural } from "@/lib/plural";
 import { fullName } from "@/lib/personName";
 
 import type { ClubCategory } from "@/actions/categories";
 import type { ClubMember } from "@/actions/members";
 import {
   approveClubRequest,
+  approveClubRequests,
   deleteClubRequest,
   denyClubRequest,
+  denyClubRequests,
+  restoreClubRequests,
   updateClubRequest,
   type ClubRequest,
+  type ClubRequestSnapshot,
 } from "@/actions/clubRequests";
 
 type HourRequestsUIProps = {
@@ -38,72 +46,298 @@ type HourRequestsUIProps = {
   today: string;
 };
 
-type Dialog = { type: "add" } | { type: "edit" | "delete"; request: ClubRequest };
+type TabValue = "pending" | "email" | "approved" | "denied";
+
+type Dialog =
+  | { type: "add" }
+  | { type: "bulkDeny" }
+  | { type: "edit" | "delete" | "photo"; request: ClubRequest };
 type EditResult = { saving: boolean; error: string };
+type Group = "This Week" | "Last 30 Days" | "Older";
 
 const ALL = "all";
+const PER_PAGE = 10;
+const UNDO_MS = 6000;
+const WAITING_DAYS = 7;
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const CATEGORY_COLORS = [
+  "var(--primaryBlue)",
+  "var(--primaryRed)",
+  "var(--secondaryGray)",
+  "var(--warningAmber)",
+  "var(--navy)",
+];
 
-const TABS: { value: string; label: string; empty: string; matches: (request: ClubRequest) => boolean }[] = [
+const TABS: {
+  value: TabValue;
+  label: string;
+  empty: [title: string, text: string];
+  matches: (request: ClubRequest) => boolean;
+}[] = [
   {
     value: "pending",
     label: "Pending",
-    empty: "No pending requests.",
+    empty: ["You are all caught up!", "Nothing needs club approval right now. New requests will show up here."],
     matches: (r) => r.status === "Pending Club Verification",
   },
   {
     value: "email",
     label: "Awaiting Email",
-    empty: "No requests are waiting on a coordinator email.",
+    empty: ["No emails out", "No requests are waiting on a coordinator right now."],
     matches: (r) => r.status === "Pending Email Verification",
   },
-  { value: "approved", label: "Approved", empty: "No approved requests.", matches: (r) => r.status === "Approved" },
-  { value: "denied", label: "Denied", empty: "No denied requests.", matches: (r) => r.status === "Denied" },
+  {
+    value: "approved",
+    label: "Approved",
+    empty: ["No approved hours yet", "Approved requests will show up here."],
+    matches: (r) => r.status === "Approved",
+  },
+  {
+    value: "denied",
+    label: "Denied",
+    empty: ["Nothing denied", "Denied requests will show up here."],
+    matches: (r) => r.status === "Denied",
+  },
 ];
 
-// A coordinator on a request past the email step verified it. Requests that only need the
-// club have no coordinator, so they have nobody to show.
-const approvedBy = (request: ClubRequest) => {
-  if (request.status !== "Pending Club Verification" && request.status !== "Approved") return null;
-  if (!request.coordinator) return null;
-  return request.organization ? `${request.coordinator} at ${request.organization}` : request.coordinator;
+//--------------------------------------------------------------------------------------//
+//                                       Helpers                                        //
+//--------------------------------------------------------------------------------------//
+
+const isPending = (r: ClubRequest) =>
+  r.status === "Pending Club Verification" || r.status === "Pending Email Verification";
+
+const studentName = (r: ClubRequest) => (r.student ? fullName(r.student) || "Unknown Student" : "Unknown Student");
+
+// Days since 1970 for an ISO date, so two dates can be subtracted without time zones.
+const dayNumber = (iso: string | null | undefined) => {
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(iso ?? "");
+  if (!match) return null;
+  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86_400_000;
 };
+
+const weekdayOf = (iso: string) => {
+  const day = dayNumber(iso);
+  return day === null ? "" : WEEKDAYS[new Date(day * 86_400_000).getUTCDay()];
+};
+
+const submittedLineOf = (r: ClubRequest) => {
+  if (r.isManual) return "Added by club exec";
+  const submitted = dayNumber(r.submittedOn);
+  const event = dayNumber(r.isoDate);
+  if (submitted === null || event === null) return null;
+
+  const after = submitted - event;
+  if (after <= 0) return "Submitted same day";
+  return `Submitted ${plural(after, "day")} after`;
+};
+
+// Waiting counts from the submit date, or from the event date on rows logged before that was saved.
+const waitingDaysOf = (r: ClubRequest, today: number | null) => {
+  if (!isPending(r) || today === null) return null;
+  const since = dayNumber(r.submittedOn) ?? dayNumber(r.isoDate);
+  if (since === null) return null;
+  const days = today - since;
+  return days >= WAITING_DAYS ? days : null;
+};
+
+const groupOf = (r: ClubRequest, today: number | null): Group => {
+  const day = dayNumber(r.isoDate);
+  if (today === null || day === null) return "Older";
+  const ago = today - day;
+  return ago <= 7 ? "This Week" : ago <= 30 ? "Last 30 Days" : "Older";
+};
+
+const duplicateKey = (r: ClubRequest) => `${r.studentId}|${r.opportunity.trim().toLowerCase()}|${r.isoDate}`;
+
+const snapshotOf = (r: ClubRequest): ClubRequestSnapshot => ({
+  id: r.id,
+  status: r.status,
+  denyMessage: r.denyMessage ?? null,
+  coordinatorName: r.coordinator ?? null,
+  coordinatorEmail: r.coordinatorEmail ?? null,
+});
+
+//--------------------------------------------------------------------------------------//
+//                                         Page                                         //
+//--------------------------------------------------------------------------------------//
 
 export default function HourRequestsUI({ clubId, clubName, requests, categories, members, today }: HourRequestsUIProps) {
   const { showToast } = useToast();
 
-  const [tab, setTab] = useState("pending");
+  const [tab, setTab] = useState<TabValue>("pending");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(ALL);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [newestFirst, setNewestFirst] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [denying, setDenying] = useState<{ id: number; message: string } | null>(null);
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [studentRequestId, setStudentRequestId] = useState<number | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [editState, setEditState] = useState<EditResult>({ saving: false, error: "" });
   const [isDeleting, setIsDeleting] = useState(false);
-  const detailsRef = useRef<HTMLDivElement>(null);
+  const [isReviewing, setIsReviewing] = useState(false);
 
+  const todayNumber = dayNumber(today);
   const current = TABS.find((t) => t.value === tab) ?? TABS[0];
+  const showStatusIcon = tab === "approved" || tab === "denied";
   const query = search.trim().toLowerCase();
   const filtering = query !== "" || category !== ALL;
 
-  const visible = requests.filter(
-    (r) =>
-      current.matches(r) &&
-      (category === ALL || String(r.categoryId) === category) &&
-      (!query || `${r.student ? fullName(r.student) : ""} ${r.opportunity}`.toLowerCase().includes(query)),
-  );
-  const selected = visible.find((r) => r.id === selectedId) ?? visible[0];
+  // Filter and sort
+  const visible = requests
+    .filter(
+      (r) =>
+        current.matches(r) &&
+        (category === ALL || String(r.categoryId) === category) &&
+        (!query || `${studentName(r)} ${r.opportunity}`.toLowerCase().includes(query)),
+    )
+    .sort((a, b) => {
+      const byDate = (dayNumber(b.isoDate) ?? 0) - (dayNumber(a.isoDate) ?? 0) || b.id - a.id;
+      return newestFirst ? byDate : -byDate;
+    });
 
-  const select = (id: ClubRequest["id"]) => {
-    setSelectedId(id);
-    // The details sit under the list on narrow screens
-    detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  const pageCount = Math.max(1, Math.ceil(visible.length / PER_PAGE));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = visible.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+
+  const groupCounts = new Map<Group, number>();
+  visible.forEach((r) => {
+    const g = groupOf(r, todayNumber);
+    groupCounts.set(g, (groupCounts.get(g) ?? 0) + 1);
+  });
+
+  // Flags: same student, opportunity and date on two or more requests that are not denied
+  const duplicateCounts = new Map<string, number>();
+  requests.forEach((r) => {
+    if (r.status === "Denied") return;
+    const key = duplicateKey(r);
+    duplicateCounts.set(key, (duplicateCounts.get(key) ?? 0) + 1);
+  });
+  const flagsOf = (r: ClubRequest): RowFlag[] =>
+    isPending(r) && (duplicateCounts.get(duplicateKey(r)) ?? 0) > 1
+      ? [{ label: "Possible Duplicate", tip: "Another request has the same student, opportunity and date." }]
+      : [];
+
+  const categoryColor = (categoryId: number | null) => {
+    const index = categories.findIndex((c) => c.categoryId === categoryId);
+    return index < 0 ? "var(--secondaryGray)" : CATEGORY_COLORS[index % CATEGORY_COLORS.length];
   };
+
+  // Selection only ever holds pending requests that are still in the list
+  const selectedRequests = requests.filter((r) => selectedIds.includes(r.id) && isPending(r) && current.matches(r));
+  const selectablePageIds = pageRows.filter(isPending).map((r) => r.id);
+  const pageAllSelected = selectablePageIds.length > 0 && selectablePageIds.every((id) => selectedIds.includes(id));
+
+  const awaitingHours = requests.filter(isPending).reduce((sum, r) => sum + r.hours, 0);
+
+  // Resets that go with changing what the list shows
+  const changeTab = (value: string) => {
+    setTab(value as TabValue);
+    setPage(1);
+    setSelectedIds([]);
+    setDenying(null);
+  };
+  const changePage = (n: number) => {
+    setPage(n);
+    setDenying(null);
+  };
+
+  const toggleSelected = (id: number) =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const togglePage = () =>
+    setSelectedIds((prev) =>
+      pageAllSelected
+        ? prev.filter((id) => !selectablePageIds.includes(id))
+        : [...new Set([...prev, ...selectablePageIds])],
+    );
+  const unselect = (ids: number[]) => setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
+
+  //------------------------------------- Review --------------------------------------//
+
+  const undo = async (snapshots: ClubRequestSnapshot[], reviewedStatus: "Approved" | "Denied") => {
+    try {
+      const result = await restoreClubRequests(clubId, snapshots, reviewedStatus);
+      if (!result.success) showToast(result.error, "danger");
+      else if (result.changed < snapshots.length)
+        showToast(`Undid ${result.changed} of ${plural(snapshots.length, "review")}.`, "warning");
+      else showToast("Review undone.", "success");
+    } catch {
+      showToast("Could not undo this review. Please try again.", "danger");
+    }
+  };
+
+  const showReviewToast = (message: string, snapshots: ClubRequestSnapshot[], reviewedStatus: "Approved" | "Denied") =>
+    showToast(message, "success", {
+      duration: UNDO_MS,
+      action: { label: "Undo", onClick: () => undo(snapshots, reviewedStatus) },
+    });
+
+  // Runs one review at a time and reports failures as a toast.
+  const review = async (run: () => Promise<void>, failure: string) => {
+    if (isReviewing) return;
+    setIsReviewing(true);
+    try {
+      await run();
+    } catch {
+      showToast(failure, "danger");
+    } finally {
+      setIsReviewing(false);
+    }
+  };
+
+  const approve = (r: ClubRequest) =>
+    review(async () => {
+      const result = await approveClubRequest(clubId, r.id);
+      unselect([r.id]);
+      if (!result.success) return showToast(result.error, "danger");
+      showReviewToast(`Approved ${formatHours(r.hours)} for ${studentName(r)}.`, [snapshotOf(r)], "Approved");
+    }, "Could not save this review. Please try again.");
+
+  const deny = (r: ClubRequest, message: string) =>
+    review(async () => {
+      const result = await denyClubRequest(clubId, r.id, message);
+      if (!result.success) return showToast(result.error, "danger");
+      setDenying(null);
+      unselect([r.id]);
+      showReviewToast(`Denied ${formatHours(r.hours)} for ${studentName(r)}.`, [snapshotOf(r)], "Denied");
+    }, "Could not save this review. Please try again.");
+
+  const approveSelected = () => {
+    const chosen = selectedRequests;
+    review(async () => {
+      const result = await approveClubRequests(clubId, chosen.map((r) => r.id));
+      unselect(chosen.map((r) => r.id));
+      if (!result.success) return showToast(result.error, "danger");
+      showReviewToast(`Approved ${plural(result.changed, "request")}.`, chosen.map(snapshotOf), "Approved");
+    }, "Could not approve these requests. Please try again.");
+  };
+
+  const denySelected = () => {
+    const chosen = selectedRequests;
+    review(async () => {
+      const result = await denyClubRequests(clubId, chosen.map((r) => r.id), bulkMessage);
+      if (!result.success) return showToast(result.error, "danger");
+      unselect(chosen.map((r) => r.id));
+      setDialog(null);
+      setDenying(null);
+      showReviewToast(`Denied ${plural(result.changed, "request")}.`, chosen.map(snapshotOf), "Denied");
+    }, "Could not deny these requests. Please try again.");
+  };
+
+  //------------------------------------ Edit/Delete ----------------------------------//
 
   const openEdit = (request: ClubRequest) => {
     setEditState({ saving: false, error: "" });
+    setDenying(null);
     setDialog({ type: "edit", request });
   };
 
-  const handleEdit = async (request: ClubRequest, edited: { hours: number; isoDate?: string; category?: string; status: ClubRequest["status"] }) => {
+  const handleEdit = async (
+    request: ClubRequest,
+    edited: { hours: number; isoDate?: string; category?: string; status: ClubRequest["status"] },
+  ) => {
     if (editState.saving) return;
 
     const categoryId = categories.find((c) => c.categoryName === edited.category)?.categoryId ?? null;
@@ -135,6 +369,7 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
       const result = await deleteClubRequest(clubId, request.id);
       if (result.success) showToast("Request deleted.", "success");
       else showToast(result.error, "danger");
+      unselect([request.id]);
       setDialog(null);
     } catch {
       showToast("Could not delete this request. Please try again.", "danger");
@@ -142,6 +377,75 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
       setIsDeleting(false);
     }
   };
+
+  //---------------------------------- Student panel ----------------------------------//
+
+  const studentRequest = requests.find((r) => r.id === studentRequestId);
+  const studentRequests = studentRequest
+    ? requests
+        .filter((r) =>
+          studentRequest.studentId !== null ? r.studentId === studentRequest.studentId : r.id === studentRequest.id,
+        )
+        .sort((a, b) => (dayNumber(b.isoDate) ?? 0) - (dayNumber(a.isoDate) ?? 0) || b.id - a.id)
+    : [];
+  const sumHours = (list: ClubRequest[]) => list.reduce((sum, r) => sum + r.hours, 0);
+  const recent: StudentSummaryRequest[] = studentRequests.slice(0, 6).map((r) => ({
+    id: r.id,
+    opportunity: r.opportunity,
+    date: r.date,
+    status:
+      r.status === "Pending Email Verification"
+        ? "Awaiting Email"
+        : r.status === "Pending Club Verification"
+          ? "Pending"
+          : r.status,
+    tone: r.status === "Approved" ? "approved" : r.status === "Denied" ? "denied" : "pending",
+    hours: r.hours,
+  }));
+
+  //-------------------------------------- Render -------------------------------------//
+
+  const rows: ReactNode[] = [];
+  let lastGroup: Group | null = null;
+  pageRows.forEach((r) => {
+    const group = groupOf(r, todayNumber);
+    if (group !== lastGroup) {
+      lastGroup = group;
+      rows.push(
+        <div key={`group-${group}`} className="club-requests-group" role="heading" aria-level={3}>
+          <i className="bi bi-calendar3" aria-hidden="true" />
+          {group}
+          <span className="club-requests-group-count">· {plural(groupCounts.get(group) ?? 0, "request")}</span>
+        </div>,
+      );
+    }
+    rows.push(
+      <RequestTableRow
+        key={r.id}
+        request={r}
+        name={studentName(r)}
+        categoryColor={categoryColor(r.categoryId)}
+        showStatusIcon={showStatusIcon}
+        weekday={weekdayOf(r.isoDate)}
+        submittedLine={submittedLineOf(r)}
+        waitingDays={waitingDaysOf(r, todayNumber)}
+        flags={flagsOf(r)}
+        selected={selectedIds.includes(r.id)}
+        denying={denying?.id === r.id}
+        denyMessage={denying?.id === r.id ? denying.message : ""}
+        busy={isReviewing}
+        onToggleSelect={() => toggleSelected(r.id)}
+        onOpenStudent={() => setStudentRequestId(r.id)}
+        onApprove={() => approve(r)}
+        onStartDeny={() => setDenying(denying?.id === r.id ? null : { id: r.id, message: "" })}
+        onDenyMessageChange={(message) => setDenying({ id: r.id, message })}
+        onConfirmDeny={() => deny(r, denying?.id === r.id ? denying.message : "")}
+        onCancelDeny={() => setDenying(null)}
+        onEdit={() => openEdit(r)}
+        onViewPhoto={() => setDialog({ type: "photo", request: r })}
+      />,
+    );
+  });
 
   return (
     <div className="club-requests">
@@ -157,17 +461,29 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
         }
       />
 
-      <Tabs
-        ariaLabel="Filter Requests"
-        tabs={TABS.map((t) => ({ value: t.value, label: t.label, count: requests.filter(t.matches).length }))}
-        value={tab}
-        onChange={setTab}
-      />
+      {/* Tabs */}
+      <div className="club-requests-tabs-row">
+        <div className="club-requests-tabs">
+          <Tabs
+            ariaLabel="Filter Requests"
+            tabs={TABS.map((t) => ({ value: t.value, label: t.label, count: requests.filter(t.matches).length }))}
+            value={tab}
+            onChange={changeTab}
+          />
+        </div>
+        <div className="club-requests-awaiting">
+          <span className="club-requests-awaiting-hours">{formatHours(awaitingHours)}</span> awaiting approval
+        </div>
+      </div>
 
+      {/* Filters */}
       <FilterBar
         searchPlaceholder="Search Students Or Opportunities"
         searchValue={search}
-        onSearchChange={setSearch}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         selects={
           categories.length > 0
             ? [
@@ -182,42 +498,111 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
               ]
             : []
         }
-        onSelectChange={(_, value) => setCategory(value)}
+        onSelectChange={(_, value) => {
+          setCategory(value);
+          setPage(1);
+        }}
       />
 
-      {visible.length === 0 ? (
-        <EmptyState icon="inbox" message={filtering ? "No requests match your filters." : current.empty} />
-      ) : (
-        <div className="club-requests-body">
-          {/* List */}
-          <div className="club-requests-list">
-            {visible.map((r) => (
-              <RequestRow
-                key={r.id}
-                request={r}
-                showStudent
-                showClub={false}
-                showCategory
-                showDate={false}
-                showPendingBadge={false}
-                selected={r.id === selected?.id}
-                onSelect={(id) => select(Number(id))}
-              />
-            ))}
+      <div className="club-requests-list">
+        {/* Bulk bar */}
+        {selectedRequests.length > 0 && (
+          <div className="club-requests-bulk" role="region" aria-label="Selected requests">
+            <div className="club-requests-bulk-label">{plural(selectedRequests.length, "request")} selected</div>
+            <button
+              type="button"
+              className="club-requests-btn club-requests-btn-bulk-approve"
+              onClick={approveSelected}
+              disabled={isReviewing}
+            >
+              <i className="bi bi-check-lg" aria-hidden="true" />
+              Approve Selected
+            </button>
+            <button
+              type="button"
+              className="club-requests-btn club-requests-btn-bulk-deny"
+              onClick={() => {
+                setBulkMessage("");
+                setDialog({ type: "bulkDeny" });
+              }}
+              disabled={isReviewing}
+            >
+              <i className="bi bi-x-lg" aria-hidden="true" />
+              Deny Selected
+            </button>
+            <button type="button" className="club-requests-btn club-requests-btn-bulk-clear" onClick={() => setSelectedIds([])}>
+              Clear
+            </button>
           </div>
+        )}
 
-          {/* Details */}
-          <div ref={detailsRef}>
-            {selected && (
-              <RequestDetails
-                key={selected.id}
-                clubId={clubId}
-                request={selected}
-                onEdit={() => openEdit(selected)}
-              />
-            )}
+        {visible.length === 0 ? (
+          /* Empty */
+          <div className="club-requests-empty" role="status">
+            <Image src={lionHead} alt="" width={120} className="club-requests-empty-lion" />
+            <div className="club-requests-empty-title">{filtering ? "No matches" : current.empty[0]}</div>
+            <div className="club-requests-empty-text">
+              {filtering ? "No requests match your search or category. Try clearing the filters." : current.empty[1]}
+            </div>
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Table header */}
+            <div className="club-requests-grid club-requests-head">
+              <div className="club-requests-cell-check">
+                {selectablePageIds.length > 0 && (
+                  <input
+                    type="checkbox"
+                    className="club-requests-checkbox"
+                    checked={pageAllSelected}
+                    onChange={togglePage}
+                    aria-label="Select all requests on this page"
+                  />
+                )}
+              </div>
+              <div className="club-requests-head-label">Student</div>
+              <div className="club-requests-head-label">Opportunity</div>
+              <div>
+                <button
+                  type="button"
+                  className="club-requests-sort"
+                  onClick={() => setNewestFirst((v) => !v)}
+                  aria-label={`Sort by date, currently ${newestFirst ? "newest first" : "oldest first"}`}
+                >
+                  <i className={`bi bi-caret-${newestFirst ? "down" : "up"}-fill`} aria-hidden="true" />
+                  Date · Hours
+                </button>
+              </div>
+              <div className="club-requests-head-label">{showStatusIcon ? "Status · Coordinator" : "Coordinator"}</div>
+              <div className="club-requests-head-count">{plural(visible.length, "Request")}</div>
+            </div>
+
+            {/* Rows */}
+            {rows}
+
+            <Pager
+              page={currentPage}
+              total={visible.length}
+              perPage={PER_PAGE}
+              onChange={changePage}
+              ariaLabel="Hour request pages"
+            />
+          </>
+        )}
+      </div>
+
+      {/* Student panel */}
+      {studentRequest && (
+        <StudentSummaryPanel
+          student={studentRequest.student ?? { fName: "Unknown", lName: "Student" }}
+          email={studentRequest.studentEmail}
+          goal={categories.reduce((sum, c) => sum + (c.goal || 0), 0)}
+          approvedHours={sumHours(studentRequests.filter((r) => r.status === "Approved"))}
+          pendingHours={sumHours(studentRequests.filter(isPending))}
+          deniedCount={studentRequests.filter((r) => r.status === "Denied").length}
+          recent={recent}
+          onClose={() => setStudentRequestId(null)}
+        />
       )}
 
       {/* Dialogs */}
@@ -228,12 +613,11 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
           members={members}
           today={today}
           onClose={() => setDialog(null)}
-          onAdded={(requestId) => {
+          onAdded={() => {
             setDialog(null);
-            setTab("approved");
+            changeTab("approved");
             setSearch("");
             setCategory(ALL);
-            setSelectedId(requestId);
             showToast("Hours added.", "success");
           }}
         />
@@ -255,119 +639,66 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
       {dialog?.type === "delete" && (
         <ConfirmDialog
           title="Delete Request"
-          message={`Delete ${dialog.request.opportunity} for ${dialog.request.student ? fullName(dialog.request.student) : "this student"}? This cannot be undone.`}
+          message={`Delete ${dialog.request.opportunity} for ${studentName(dialog.request)}? This cannot be undone.`}
           confirmLabel={isDeleting ? "Deleting..." : "Delete Request"}
           onConfirm={() => handleDelete(dialog.request)}
           onClose={() => setDialog(null)}
         />
       )}
-    </div>
-  );
-}
-
-type RequestDetailsProps = {
-  clubId: number;
-  request: ClubRequest;
-  onEdit: () => void;
-};
-
-function RequestDetails({ clubId, request, onEdit }: RequestDetailsProps) {
-  const { showToast } = useToast();
-
-  const [denyMessage, setDenyMessage] = useState("");
-  const [isReviewing, setIsReviewing] = useState(false);
-
-  const canReview = request.status === "Pending Email Verification" || request.status === "Pending Club Verification";
-  const approver = approvedBy(request);
-
-  const review = async (action: () => Promise<{ success: true } | { success: false; error: string }>, message: string) => {
-    if (isReviewing) return;
-
-    setIsReviewing(true);
-    try {
-      const result = await action();
-      if (result.success) showToast(message, "success");
-      else showToast(result.error, "danger");
-    } catch {
-      showToast("Could not save this review. Please try again.", "danger");
-    } finally {
-      setIsReviewing(false);
-    }
-  };
-
-  const items: DetailItem[] = [
-    { label: "Date", value: request.fullDate },
-    { label: "Hours", value: formatHours(request.hours) },
-    ...(approver
-      ? [
-          { label: "Approved By", value: approver, full: true },
-          ...(request.coordinatorEmail ? [{ label: "Coordinator Email", value: request.coordinatorEmail, full: true }] : []),
-        ]
-      : [
-          ...(request.status === "Pending Email Verification"
-            ? [
-                {
-                  label: "Verification",
-                  value: request.coordinator ? "Not Yet Verified" : "The student has not added a coordinator yet.",
-                  full: true,
-                },
-              ]
-            : []),
-          ...(request.organization ? [{ label: "Organization", value: request.organization }] : []),
-          ...(request.coordinator
-            ? [{ label: "Coordinator", value: [request.coordinator, request.coordinatorEmail].filter(Boolean).join(" · ") }]
-            : []),
-        ]),
-    ...(request.message ? [{ label: "Student Message", value: request.message, full: true }] : []),
-    ...(request.denyMessage
-      ? [{ label: "Deny Message", value: request.denyMessage, full: true, tone: "danger" as const }]
-      : []),
-  ];
-
-  return (
-    <div className="club-requests-details">
-      <div>
-        <h2 className="club-requests-details-title">{request.student ? fullName(request.student) : request.opportunity}</h2>
-        <div className="club-requests-details-subtitle">
-          {[request.opportunity, request.category].filter(Boolean).join(" · ")}
-        </div>
-      </div>
-
-      <DetailList items={items} columns={2} layout="stacked" />
-
-      {canReview && (
-        <>
-          <Input
-            label="Deny Message (Optional)"
-            multiline
-            rows={3}
-            placeholder="Shown to the student if you deny this request."
-            value={denyMessage}
-            onChange={(e) => setDenyMessage(e.target.value)}
-          />
-          <div className="club-requests-review">
-            <SaveButton
-              fullWidth
-              disabled={isReviewing}
-              onClick={() => review(() => approveClubRequest(clubId, request.id), "Hours approved.")}
-            >
-              {request.status === "Pending Email Verification" ? "Override Approve" : "Approve"}
-            </SaveButton>
-            <SaveButton
-              fullWidth
-              variant="danger"
-              disabled={isReviewing}
-              onClick={() => review(() => denyClubRequest(clubId, request.id, denyMessage), "Request denied.")}
-            >
-              Deny
-            </SaveButton>
+      {dialog?.type === "bulkDeny" && (
+        <ModalShell
+          title="Deny Selected Requests"
+          width="560px"
+          onClose={() => setDialog(null)}
+          footer={
+            <>
+              <SaveButton variant="secondary" onClick={() => setDialog(null)}>
+                Cancel
+              </SaveButton>
+              <SaveButton variant="danger" onClick={denySelected} disabled={isReviewing || selectedRequests.length === 0}>
+                Deny {selectedRequests.length}
+              </SaveButton>
+            </>
+          }
+        >
+          <div className="club-requests-dialog-body">
+            <p className="club-requests-dialog-lead">
+              Deny {plural(selectedRequests.length, "request")}? Each student will see the message below.
+            </p>
+            <Input
+              label="Deny Message (Optional)"
+              multiline
+              rows={3}
+              placeholder="Shown to each student."
+              value={bulkMessage}
+              onChange={(e) => setBulkMessage(e.target.value)}
+            />
           </div>
-        </>
+        </ModalShell>
       )}
-
-      <SaveButton fullWidth variant="secondary" icon="pencil" disabled={isReviewing} onClick={onEdit}>
-        Edit Or Override
-      </SaveButton>
+      {dialog?.type === "photo" && (
+        <ModalShell
+          title="Submitted Photo"
+          width="560px"
+          onClose={() => setDialog(null)}
+          footer={
+            <SaveButton variant="secondary" onClick={() => setDialog(null)}>
+              Close
+            </SaveButton>
+          }
+        >
+          <div className="club-requests-dialog-body">
+            <div className="club-requests-dialog-who">
+              {studentName(dialog.request)} · {dialog.request.opportunity} · {dialog.request.date}
+            </div>
+            {/* TODO: load the photo from the club's image folder using the request's imageId */}
+            <div className="club-requests-photo-placeholder">
+              <i className="bi bi-image" aria-hidden="true" />
+              This photo will open from the club&apos;s image folder.
+            </div>
+          </div>
+        </ModalShell>
+      )}
     </div>
   );
 }

@@ -24,9 +24,22 @@ function ToastItem({
       role="status"
       aria-live="polite"
     >
-      <i className={`bi ${ICONS[toast.type]} toast-item-icon`} />
+      <i className={`bi ${ICONS[toast.type]} toast-item-icon`} aria-hidden="true" />
 
       <span className="toast-item-message">{toast.message}</span>
+
+      {toast.action && (
+        <button
+          type="button"
+          className="toast-item-action"
+          onClick={() => {
+            toast.action?.onClick();
+            onClose();
+          }}
+        >
+          {toast.action.label}
+        </button>
+      )}
 
       <button
         type="button"

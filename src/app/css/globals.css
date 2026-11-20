@@ -26,6 +26,16 @@
   --warningAmber: #c47f00;
   --successGreen: #1e7e34;
   --scrim: rgba(0, 0, 0, 0.5);
+  --scrimNavy: rgba(11, 38, 79, 0.25);
+  --inkText: #1f2937;
+  --mutedText: #5c6168;
+  --rowDivider: #e1e4e9;
+  --panelTint: #f3f6fa;
+  --amberTint: #fff4e0;
+  --amberText: #8a5200;
+  --redTintSolid: #fdecef;
+  --redText: #a50c25;
+  --denySurface: #fff7f8;
 
   /* Hour request status */
   --statusPending: var(--warningAmber);

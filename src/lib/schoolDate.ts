@@ -6,3 +6,8 @@ export function schoolToday(): string {
   // en-CA formats dates as YYYY-MM-DD
   return new Date().toLocaleDateString("en-CA", { timeZone: SCHOOL_TIME_ZONE });
 }
+
+// A moment's date at the school as an ISO date, e.g. "2026-10-27".
+export function schoolDateOf(moment: Date): string {
+  return moment.toLocaleDateString("en-CA", { timeZone: SCHOOL_TIME_ZONE });
+}
