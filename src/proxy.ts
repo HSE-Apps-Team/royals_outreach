@@ -21,7 +21,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next.js build assets, the icons (shown in emails), the coordinator page
-  // (opened from email and protected by its signed link) and the cron routes (CRON_SECRET).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|coordinator|api/cron).*)"],
+  // Everything except Next.js build assets, the icons and progress rings (shown in emails), the
+  // coordinator page (opened from email and protected by its signed link) and the cron routes
+  // (CRON_SECRET).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|coordinator|api/cron|api/email).*)"],
 };

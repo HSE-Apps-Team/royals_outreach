@@ -4,14 +4,14 @@ import { plural } from "@/lib/plural";
 
 // Email markup is tables and inline styles, since mail apps ignore stylesheets.
 // Colors are the brand tokens from globals.css.
-const NAVY = "#0b264f";
-const BLUE = "#164998";
-const RED = "#d10f2f";
-const SILVER = "#c8ccd3";
-const GRAY = "#5c6168";
-const INK = "#1f2937";
-const TINT = "#eef3fa";
-const FONT = "Poppins, 'Segoe UI', Arial, sans-serif";
+export const NAVY = "#0b264f";
+export const BLUE = "#164998";
+export const RED = "#d10f2f";
+export const SILVER = "#c8ccd3";
+export const GRAY = "#5c6168";
+export const INK = "#1f2937";
+export const TINT = "#eef3fa";
+export const FONT = "Poppins, 'Segoe UI', Arial, sans-serif";
 
 /** A staff sponsor of a club, listed as the contact for questions. */
 export type EmailContact = {
@@ -33,7 +33,7 @@ export type CoordinatorDigestRequest = {
 //                                       Helpers                                        //
 //--------------------------------------------------------------------------------------//
 
-const escape = (value: string) =>
+export const escape = (value: string) =>
   value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -41,7 +41,7 @@ const escape = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const button = (label: string, href: string) => `
+export const button = (label: string, href: string) => `
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 8px">
     <tr><td style="background:${BLUE};border-radius:6px">
       <a href="${escape(href)}" style="display:inline-block;padding:12px 22px;font:600 15px ${FONT};color:#ffffff;text-decoration:none">${escape(label)}</a>
@@ -49,7 +49,7 @@ const button = (label: string, href: string) => `
   </table>`;
 
 // The navy header with the logo, a white body and a short footer line.
-const layout = ({ preview, body, footer }: { preview: string; body: string; footer: string }) => `<!DOCTYPE html>
+export const layout = ({ preview, body, footer }: { preview: string; body: string; footer: string }) => `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Royals Outreach</title></head>
 <body style="margin:0;padding:0;background:#eceef2">
@@ -73,14 +73,14 @@ const layout = ({ preview, body, footer }: { preview: string; body: string; foot
 </html>`;
 
 // "A, B, or C" for a list of names.
-const joinOr = (items: string[]) =>
+export const joinOr = (items: string[]) =>
   items.length <= 2 ? items.join(" or ") : `${items.slice(0, -1).join(", ")}, or ${items.at(-1)}`;
 
-const heading = (text: string) =>
+export const heading = (text: string) =>
   `<h1 style="margin:0 0 12px;font:700 22px/1.25 ${FONT};color:${BLUE}">${escape(text)}</h1>`;
 
 // One request as a row with a silver divider, matching the app's borderless lists.
-const row = (title: string, lines: string[], side: string) => `
+export const row = (title: string, lines: string[], side: string) => `
   <tr><td style="padding:12px 0;border-bottom:2px solid ${SILVER}">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="font:400 14px/1.45 ${FONT};color:${INK}">
@@ -91,7 +91,7 @@ const row = (title: string, lines: string[], side: string) => `
     </tr></table>
   </td></tr>`;
 
-const list = (rows: string[]) =>
+export const list = (rows: string[]) =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:2px solid ${SILVER}">${rows.join("")}</table>`;
 
 //--------------------------------------------------------------------------------------//

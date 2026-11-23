@@ -47,7 +47,7 @@ const nameOf = (fName: string | null, lName: string | null) =>
   fullName({ fName: fName ?? "", lName: lName ?? "" }) || "A student";
 
 // Staff assigned to each club, as the contacts for questions about its requests.
-const getSponsorsByClub = async (clubIds: number[]): Promise<Map<number, EmailContact[]>> => {
+export const getSponsorsByClub = async (clubIds: number[]): Promise<Map<number, EmailContact[]>> => {
   if (clubIds.length === 0) return new Map();
 
   const rows = await db

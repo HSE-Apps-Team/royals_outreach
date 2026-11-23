@@ -4,10 +4,12 @@ import { db } from "@/db";
 import { categoryData, loggedHours, studentUserData } from "@/db/schema";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
+import { after } from "next/server";
 import { coordinatorEmailFromToken } from "@/lib/coordinatorLink";
 import { formatDate } from "@/lib/formatDate";
 import { fullName } from "@/lib/personName";
 import { schoolDateOf, schoolToday } from "@/lib/schoolDate";
+import { emailCoordinatorDecision } from "@/lib/studentEmails";
 import { MAX_MESSAGE_LENGTH } from "@/lib/validateLoggedHours";
 
 /** A request waiting on the coordinator. */
@@ -166,6 +168,7 @@ export const approveAsCoordinator = async (token: string, requestId: number): Pr
     .where(waitingOn(email, requestId))
     .returning({ num: loggedHours.num });
 
+  if (updated.length > 0) after(() => emailCoordinatorDecision(requestId));
   refresh();
   return updated.length > 0 ? { success: true } : { success: false, error: ALREADY_ANSWERED };
 };
@@ -196,6 +199,7 @@ export const denyAsCoordinator = async (
     .where(waitingOn(email, requestId))
     .returning({ num: loggedHours.num });
 
+  if (updated.length > 0) after(() => emailCoordinatorDecision(requestId));
   refresh();
   return updated.length > 0 ? { success: true } : { success: false, error: ALREADY_ANSWERED };
 };

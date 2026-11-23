@@ -4,10 +4,12 @@ import { db } from "@/db";
 import { categoryData, clubData, loggedHours, studentClubMembership, studentUserData } from "@/db/schema";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
+import { after } from "next/server";
 import type { HourRequest, HourRequestStatus } from "@/app/components/requestRow";
 import { formatDate } from "@/lib/formatDate";
 import { schoolDateOf, schoolToday } from "@/lib/schoolDate";
 import { sendCoordinatorEmails } from "@/lib/coordinatorEmails";
+import { cancelDeletedClubEmails, updateClubDecisionEmails } from "@/lib/studentEmails";
 import { MAX_MESSAGE_LENGTH, dateError, hoursError, opportunityNameError } from "@/lib/validateLoggedHours";
 
 /** A request on the club panel's Hour Requests page. */
@@ -70,6 +72,12 @@ const DROP_UNVERIFIED_COORDINATOR = {
 //--------------------------------------------------------------------------------------//
 //                                   Other Functions                                    //
 //--------------------------------------------------------------------------------------//
+
+// The student hears about a club decision CLUB_EMAIL_DELAY_MS later (src/lib/studentEmails.ts),
+// so an Undo or a change made in the meantime cancels the email instead.
+const emailStudentsLater = (rows: { num: number }[]) => {
+  if (rows.length > 0) after(() => updateClubDecisionEmails(rows.map((r) => r.num)));
+};
 
 const isClubRequest = (clubId: number, requestId: number) =>
   and(eq(loggedHours.num, requestId), eq(loggedHours.clubId, clubId));
@@ -157,6 +165,7 @@ export const approveClubRequest = async (clubId: number, requestId: number): Pro
     .where(and(isClubRequest(clubId, requestId), inArray(loggedHours.status, PENDING_STATUSES)))
     .returning({ num: loggedHours.num });
 
+  emailStudentsLater(updated);
   refresh();
   return updated.length > 0 ? { success: true } : { success: false, error: ALREADY_REVIEWED };
 };
@@ -176,6 +185,7 @@ export const denyClubRequest = async (
     .where(and(isClubRequest(clubId, requestId), inArray(loggedHours.status, PENDING_STATUSES)))
     .returning({ num: loggedHours.num });
 
+  emailStudentsLater(updated);
   refresh();
   return updated.length > 0 ? { success: true } : { success: false, error: ALREADY_REVIEWED };
 };
@@ -198,6 +208,7 @@ export const approveClubRequests = async (clubId: number, ids: number[]): Promis
     )
     .returning({ num: loggedHours.num });
 
+  emailStudentsLater(updated);
   refresh();
   return updated.length > 0 ? { success: true, changed: updated.length } : { success: false, error: ALREADY_REVIEWED };
 };
@@ -223,6 +234,7 @@ export const denyClubRequests = async (clubId: number, ids: number[], message: s
     )
     .returning({ num: loggedHours.num });
 
+  emailStudentsLater(updated);
   refresh();
   return updated.length > 0 ? { success: true, changed: updated.length } : { success: false, error: ALREADY_REVIEWED };
 };
@@ -261,6 +273,8 @@ export const restoreClubRequests = async (
     ),
   );
 
+  // Cancels the student emails the review scheduled
+  emailStudentsLater(restored.flat());
   refresh();
   const changed = restored.reduce((sum, rows) => sum + rows.length, 0);
   return changed > 0
@@ -311,6 +325,8 @@ export const updateClubRequest = async (
     })
     .where(isClubRequest(clubId, requestId));
 
+  // A new decision emails the student; reopening it cancels an email still waiting
+  if (input.status !== request.status) emailStudentsLater([{ num: requestId }]);
   refresh();
   return { success: true };
 };
@@ -363,6 +379,7 @@ export const addClubHours = async (
     })
     .returning({ num: loggedHours.num });
 
+  emailStudentsLater([added]);
   refresh();
   return { success: true, requestId: added.num };
 };
@@ -375,8 +392,13 @@ export const deleteClubRequest = async (clubId: number, requestId: number): Prom
   const deleted = await db
     .delete(loggedHours)
     .where(isClubRequest(clubId, requestId))
-    .returning({ num: loggedHours.num });
+    .returning({
+      num: loggedHours.num,
+      emailId: sql<string | null>`case when ${loggedHours.studentEmailSendAt} > now() then ${loggedHours.studentEmailId} end`,
+    });
 
+  // A student email still waiting with this request in it goes out again without it
+  if (deleted.length > 0) after(() => cancelDeletedClubEmails(deleted.map((d) => d.emailId)));
   refresh();
   return deleted.length > 0 ? { success: true } : { success: false, error: NOT_FOUND };
 };
