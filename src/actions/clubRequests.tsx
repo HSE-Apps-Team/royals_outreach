@@ -135,12 +135,12 @@ export const getClubRequests = async (clubId: number): Promise<ClubRequest[]> =>
   }));
 };
 
-// The Hour Requests badge in the side nav.
+// The Hour Requests badge in the side nav: only requests waiting on the club.
 export const getClubPendingRequestCount = async (clubId: number): Promise<number> => {
   const [row] = await db
     .select({ pending: count() })
     .from(loggedHours)
-    .where(and(eq(loggedHours.clubId, clubId), inArray(loggedHours.status, PENDING_STATUSES)));
+    .where(and(eq(loggedHours.clubId, clubId), eq(loggedHours.status, "Pending Club Verification")));
 
   return row?.pending ?? 0;
 };

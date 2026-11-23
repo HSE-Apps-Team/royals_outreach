@@ -77,7 +77,7 @@ const TABS: {
 }[] = [
   {
     value: "pending",
-    label: "Pending",
+    label: "Pending Club Confirmation",
     empty: ["You are all caught up!", "Nothing needs club approval right now. New requests will show up here."],
     matches: (r) => r.status === "Pending Club Verification",
   },
