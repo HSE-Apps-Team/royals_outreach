@@ -73,7 +73,7 @@ const DROP_UNVERIFIED_COORDINATOR = {
 //                                   Other Functions                                    //
 //--------------------------------------------------------------------------------------//
 
-// The student hears about a club decision CLUB_EMAIL_DELAY_MS later (src/lib/studentEmails.ts),
+// The student hears about a club decision 5 minutes later (clubEmailDelayMs in src/lib/studentEmails.ts),
 // so an Undo or a change made in the meantime cancels the email instead.
 const emailStudentsLater = (rows: { num: number }[]) => {
   if (rows.length > 0) after(() => updateClubDecisionEmails(rows.map((r) => r.num)));

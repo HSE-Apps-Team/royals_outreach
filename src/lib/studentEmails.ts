@@ -19,8 +19,9 @@ import {
 //   - Coordinator decision: right after the coordinator verifies or denies on the coordinator
 //     page. When the hours then count (no club step), it shows their progress.
 //   - Club decision: when the club approves or denies (Hour Requests, Edit Or Override, Add
-//     Hours Manually). It is scheduled in Resend CLUB_EMAIL_DELAY_MS ahead, so an Undo, a
-//     later change or a delete can cancel it first. Approvals show progress.
+//     Hours Manually). It is scheduled in Resend clubEmailDelayMs() ahead (5 minutes), so an
+//     Undo, a later change or a delete can cancel it first. Approvals show progress.
+//     For testing, CLUB_EMAIL_DELAY_MINUTES=0 sends it right away (Undo can no longer stop it).
 //
 // Every email comes from the updates@ sender, and replies go to the club's staff sponsors and
 // student execs.
@@ -28,7 +29,14 @@ import {
 // These run after the response (next/server's after), so they never slow down or fail the
 // action that caused them: problems are logged, not thrown.
 
-export const CLUB_EMAIL_DELAY_MS = 10 * 60 * 1000;
+const DEFAULT_CLUB_EMAIL_DELAY_MINUTES = 5;
+
+/** How long a club decision email waits before it goes out. CLUB_EMAIL_DELAY_MINUTES overrides it. */
+export function clubEmailDelayMs(): number {
+  const configured = process.env.CLUB_EMAIL_DELAY_MINUTES;
+  const minutes = configured === undefined || configured.trim() === "" ? NaN : Number(configured);
+  return (Number.isFinite(minutes) && minutes >= 0 ? minutes : DEFAULT_CLUB_EMAIL_DELAY_MINUTES) * 60 * 1000;
+}
 
 // Emails about to go out are left alone when merging, so a cancel never races the send.
 const MERGE_MARGIN = sql`now() + interval '1 minute'`;
@@ -260,7 +268,7 @@ const cancelScheduled = async (emailIds: string[]): Promise<number[]> => {
   return freed;
 };
 
-// One email per student, club and decision, scheduled CLUB_EMAIL_DELAY_MS ahead. A student's
+// One email per student, club and decision, scheduled clubEmailDelayMs() ahead. A student's
 // email still waiting in the same club is cancelled and merged in, so several reviews in a
 // row become one email. Each row is claimed only if it still has the status the email
 // describes, so a change made while this runs cancels that email again.
@@ -312,8 +320,10 @@ const scheduleClubEmails = async (nums: number[], depth = 0): Promise<void> => {
         sponsors,
       });
 
-      const sendAt = new Date(Date.now() + CLUB_EMAIL_DELAY_MS);
-      const result = await sendEmail(fromUpdates(email, replyTo), { scheduledAt: sendAt });
+      // With no delay it goes out now, and its rows count as already sent
+      const delay = clubEmailDelayMs();
+      const sendAt = new Date(Date.now() + delay);
+      const result = await sendEmail(fromUpdates(email, replyTo), delay > 0 ? { scheduledAt: sendAt } : {});
       if ("error" in result) {
         report(`schedule club email for logs ${groupNums.join(", ")}`, result.error);
         continue;
