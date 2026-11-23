@@ -11,3 +11,8 @@ export function schoolToday(): string {
 export function schoolDateOf(moment: Date): string {
   return moment.toLocaleDateString("en-CA", { timeZone: SCHOOL_TIME_ZONE });
 }
+
+// Whole days from one ISO date to a later one, e.g. ("2026-10-20", "2026-10-27") is 7.
+export function daysBetween(fromIso: string, toIso: string): number {
+  return Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 86_400_000);
+}

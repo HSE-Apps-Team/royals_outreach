@@ -30,7 +30,7 @@ type LogHoursUIProps = {
   today: string;
 };
 
-type Submitted = { status: HourRequestStatus; line: string };
+type Submitted = { status: HourRequestStatus; line: string; emailNote: string | null };
 
 const STEPS = [
   { title: "Club And Category", icon: "list-check" },
@@ -113,6 +113,11 @@ export default function LogHoursUI({ clubs, today }: LogHoursUIProps) {
       setSubmitted({
         status: result.status,
         line: `${formatHours(Number(fields.hours))} for ${fields.opportunityName.trim()} with ${club.clubName}.`,
+        // Coordinator emails go out at 9am the day after a request is logged (src/lib/coordinatorEmails.ts)
+        emailNote:
+          result.status === "Pending Email Verification"
+            ? `An email will be sent to ${fields.coordinatorName.trim()} at ${fields.orgName.trim()} tomorrow.`
+            : null,
       });
       showToast(result.status === "Approved" ? "Hours added." : "Hours submitted.", "success");
     } catch {
@@ -167,6 +172,7 @@ export default function LogHoursUI({ clubs, today }: LogHoursUIProps) {
             {submitted.status === "Approved" ? "Hours added." : "Hours submitted for approval."}
           </h2>
           <p className="log-hours-done-line">{submitted.line}</p>
+          {submitted.emailNote && <p className="log-hours-done-line">{submitted.emailNote}</p>}
           <Badge tone={STATUS_TONE[submitted.status]}>{submitted.status}</Badge>
           <SaveButton icon="plus-circle" onClick={reset} className="log-hours-done-action">
             Log More Hours

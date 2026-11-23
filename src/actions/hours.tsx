@@ -340,7 +340,7 @@ export const logHours = async (
 };
 
 // Club and category stay as logged, so the request keeps its place in the verification steps.
-// TODO: send the coordinator a new email when their address changes, once verification emails are added
+// A new coordinator address goes back into the next daily email, since that coordinator has not seen it.
 export const updateMyRequest = async (requestId: number, input: LoggedHoursFields): Promise<MyRequestResult> => {
   const isChangeable = and(
     eq(loggedHours.num, requestId),
@@ -371,6 +371,9 @@ export const updateMyRequest = async (requestId: number, input: LoggedHoursField
       hours: Number(fields.hours),
       coordinatorName: needsEmailVerification ? fields.coordinatorName : null,
       coordinatorEmail: needsEmailVerification ? fields.coordinatorEmail : null,
+      coordinatorEmailedAt: sql`case when lower(${loggedHours.coordinatorEmail}) = ${
+        needsEmailVerification ? fields.coordinatorEmail.toLowerCase() : ""
+      } then ${loggedHours.coordinatorEmailedAt} else null end`,
       optionalMessage: fields.message || null,
     })
     .where(isChangeable)

@@ -7,6 +7,7 @@ import { refresh } from "next/cache";
 import type { HourRequest, HourRequestStatus } from "@/app/components/requestRow";
 import { formatDate } from "@/lib/formatDate";
 import { schoolDateOf, schoolToday } from "@/lib/schoolDate";
+import { sendCoordinatorEmails } from "@/lib/coordinatorEmails";
 import { MAX_MESSAGE_LENGTH, dateError, hoursError, opportunityNameError } from "@/lib/validateLoggedHours";
 
 /** A request on the club panel's Hour Requests page. */
@@ -378,4 +379,23 @@ export const deleteClubRequest = async (clubId: number, requestId: number): Prom
 
   refresh();
   return deleted.length > 0 ? { success: true } : { success: false, error: NOT_FOUND };
+};
+
+//--------------------------------------------------------------------------------------//
+//                                        Email                                         //
+//--------------------------------------------------------------------------------------//
+
+// For testing: sends the daily coordinator email right away to every coordinator with a
+// request waiting in this club, even when they were already emailed today.
+// TODO: remove the Send Email Now button and this action before launch.
+export const sendCoordinatorEmailsNow = async (clubId: number): Promise<ClubBulkResult> => {
+  if (!Number.isInteger(clubId)) return { success: false, error: "Club not found." };
+
+  const report = await sendCoordinatorEmails({ clubId, force: true });
+  if (report.disabled) return { success: false, error: `Email is off. ${report.disabled}` };
+  if (report.errors.length > 0) return { success: false, error: report.errors[0] };
+  if (report.emails === 0) return { success: false, error: "No coordinators have requests waiting in this club." };
+
+  refresh();
+  return { success: true, changed: report.sent };
 };

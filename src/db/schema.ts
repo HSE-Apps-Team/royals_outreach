@@ -167,6 +167,13 @@ export const loggedHours = pgTable("logged_hours", {
   imageId:          text("image_id"),
   // Null on rows logged before this column was added.
   submittedAt:      timestamp("submitted_at", { withTimezone: true }).defaultNow(),
+  // What the coordinator decided on the coordinator page ("Approved" or "Denied"). The club can
+  // still change the status afterward, so this keeps the coordinator's own answer.
+  coordinatorDecision:  text("coordinator_decision"),
+  coordinatorDecidedAt: timestamp("coordinator_decided_at", { withTimezone: true }),
+  // When this request was last in the coordinator's daily email. Null means they have not
+  // been told about it yet (a new request, or the student changed the coordinator's email).
+  coordinatorEmailedAt: timestamp("coordinator_emailed_at", { withTimezone: true }),
 });
 
 // ---------------- additional_hours ----------------

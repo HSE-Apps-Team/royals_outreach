@@ -30,6 +30,7 @@ import {
   denyClubRequest,
   denyClubRequests,
   restoreClubRequests,
+  sendCoordinatorEmailsNow,
   updateClubRequest,
   type ClubRequest,
   type ClubRequestSnapshot,
@@ -178,6 +179,7 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
   const [editState, setEditState] = useState<EditResult>({ saving: false, error: "" });
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [isEmailing, setIsEmailing] = useState(false);
 
   const todayNumber = dayNumber(today);
   const current = TABS.find((t) => t.value === tab) ?? TABS[0];
@@ -231,6 +233,17 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
   const pageAllSelected = selectablePageIds.length > 0 && selectablePageIds.every((id) => selectedIds.includes(id));
 
   const awaitingHours = requests.filter(isPending).reduce((sum, r) => sum + r.hours, 0);
+
+  const sendEmailNow = async () => {
+    setIsEmailing(true);
+    const result = await sendCoordinatorEmailsNow(clubId);
+    setIsEmailing(false);
+    if (!result.success) {
+      showToast(result.error, "danger");
+      return;
+    }
+    showToast(`Sent ${plural(result.changed, "coordinator email")}.`);
+  };
 
   // Resets that go with changing what the list shows
   const changeTab = (value: string) => {
@@ -455,9 +468,15 @@ export default function HourRequestsUI({ clubId, clubName, requests, categories,
         subtitle="Review, approve and manage hours submitted to this club."
         clubName={clubName}
         actions={
-          <SaveButton size="sm" variant="secondary" icon="plus-circle" onClick={() => setDialog({ type: "add" })}>
-            Add Hours Manually
-          </SaveButton>
+          <>
+            {/* TODO: testing only, remove before launch */}
+            <SaveButton size="sm" variant="secondary" icon="envelope" disabled={isEmailing} onClick={sendEmailNow}>
+              {isEmailing ? "Sending..." : "Send Email Now"}
+            </SaveButton>
+            <SaveButton size="sm" variant="secondary" icon="plus-circle" onClick={() => setDialog({ type: "add" })}>
+              Add Hours Manually
+            </SaveButton>
+          </>
         }
       />
 
