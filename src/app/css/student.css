@@ -359,3 +359,103 @@
   flex-direction: column;
   gap: 28px;
 }
+
+/* ---------------- Student Home (/student) ---------------- */
+
+.student-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+@media (max-width: 600px) {
+  .student-home {
+    gap: var(--space-6);
+  }
+}
+
+/* Total Progress ring beside the stat cards and club bars */
+.student-home-progress {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .student-home-progress {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+}
+
+.student-home-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-card) solid var(--primaryBlue);
+  border-radius: var(--radius-card);
+}
+
+.student-home-ring-label {
+  font-family: var(--font-sans);
+  font-size: clamp(0.85rem, 1vw, var(--fs-md));
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-section);
+  text-transform: uppercase;
+  color: var(--primaryBlue);
+}
+
+.student-home-progress-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.student-home-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Exec Clubs: two framed cards per row */
+.student-home-exec {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+}
+
+@media (max-width: 768px) {
+  .student-home-exec {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+/* My Clubs: three cards per row */
+.student-home-clubs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 1024px) {
+  .student-home-clubs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .student-home-clubs {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+}
+
+.student-home-club-note {
+  font-size: 13px;
+  font-weight: var(--fw-semibold);
+}

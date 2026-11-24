@@ -206,7 +206,8 @@ export const signUps = pgTable("sign_ups", {
   date:            text("date"),
   startTime:       text("start_time"),
   endTime:         text("end_time"),
-  slots:           integer("slots"),
+  location:        text("location"),
+  slots:          integer("slots"),
   hours:           hoursColumn(),
   slotsPerStudent: integer("slots_per_student"),
 });

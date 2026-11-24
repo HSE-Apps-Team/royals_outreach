@@ -9,6 +9,8 @@ export type CurrentStudent = {
   studentId: number;
   fName: string;
   lName: string;
+  /** Graduation year ("Class Of 2029"); null when the school record has none. */
+  gradClass: number | null;
 };
 
 //--------------------------------------------------------------------------------------//
@@ -26,5 +28,6 @@ export const getCurrentStudent = async (): Promise<CurrentStudent | null> => {
     studentId: student.studentId,
     fName: student.fName ?? "",
     lName: student.lName ?? "",
+    gradClass: student.gradClass ?? null,
   };
 };
