@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 //   EMAIL_FROM_UPDATES sender of student emails, default "Royals Outreach <updates@royalsoutreach.com>"
 //   EMAIL_REPLY_TO     optional address replies go to when an email does not set its own
 //   EMAIL_LIVE         "true" once the site launches. Until then, production sends every email to
-//                      a test inbox instead of the real person (see PRELAUNCH_INBOX below).
+//                      a test inbox instead of the real person (see PRELAUNCH_INBOXES below).
 //   EMAIL_REDIRECT_TO  outside production, every email goes here instead of the real person.
 //                      Without it, development never sends (dry run only), so a local run
 //                      can never email real students or coordinators.
@@ -35,11 +35,15 @@ const UPDATES_FROM = "Royals Outreach <updates@royalsoutreach.com>";
 // Resend takes up to 50 reply-to addresses.
 const MAX_REPLY_TO = 50;
 
-// Before launch, production email goes to these inboxes: school addresses (students and staff)
-// to the school test account, every other address (coordinators) to the personal one.
+// Before launch, production email goes to these inboxes instead of the real people. Everything
+// goes to the personal inbox for now, since the school's filter quarantines this domain's mail;
+// school addresses go back to the school test account once district IT allowlists it.
 // Set EMAIL_LIVE=true at launch to send to the real people.
 const SCHOOL_DOMAINS = ["hsestudents.org", "hse.k12.in.us"];
-const PRELAUNCH_INBOX = { school: "sajjanit000@hsestudents.org", outside: "sajjanithik@gmail.com" };
+const PRELAUNCH_INBOXES = {
+  school: ["sajjanithik@gmail.com"], // later: "sajjanit000@hsestudents.org"
+  outside: ["sajjanithik@gmail.com"],
+};
 
 const isProduction = () => process.env.NODE_ENV === "production";
 const isLive = () => isProduction() && process.env.EMAIL_LIVE === "true";
@@ -65,14 +69,17 @@ export function emailDisabledReason(): string | null {
 }
 
 /**
- * Where an email actually goes: the real person once EMAIL_LIVE is on, a pre-launch test
- * inbox in production before that, and EMAIL_REDIRECT_TO in development.
+ * Where an email actually goes: the real person once EMAIL_LIVE is on, the pre-launch test
+ * inboxes in production before that, and EMAIL_REDIRECT_TO in development.
  */
-export function deliveryAddress(to: string): string {
-  if (isLive()) return to;
-  if (isProduction()) return isSchoolAddress(to) ? PRELAUNCH_INBOX.school : PRELAUNCH_INBOX.outside;
-  return process.env.EMAIL_REDIRECT_TO ?? to;
+export function deliveryAddresses(to: string): string[] {
+  if (isLive()) return [to];
+  if (isProduction()) return isSchoolAddress(to) ? PRELAUNCH_INBOXES.school : PRELAUNCH_INBOXES.outside;
+  return [process.env.EMAIL_REDIRECT_TO ?? to];
 }
+
+/** deliveryAddresses as one line, for dry-run previews. */
+export const deliveryAddress = (to: string): string => deliveryAddresses(to).join(", ");
 
 // Before launch, a note at the top of the body names who the email was really for. It stays
 // out of the subject: a subject holding an email address looks like phishing to mail filters.
@@ -98,7 +105,7 @@ const toResend = (email: OutgoingEmail) => {
       : [];
   return {
     from,
-    to: [deliveryAddress(email.to)],
+    to: deliveryAddresses(email.to),
     subject: email.subject,
     html: isLive() ? email.html : withTestNote(email.html, email.to),
     text: isLive() ? email.text : `${testNote(email.to)}\n\n${email.text}`,
