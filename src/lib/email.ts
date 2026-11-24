@@ -74,7 +74,18 @@ export function deliveryAddress(to: string): string {
   return process.env.EMAIL_REDIRECT_TO ?? to;
 }
 
-// The Resend body for one email. A redirected email names its real recipient in the subject.
+// Before launch, a note at the top of the body names who the email was really for. It stays
+// out of the subject: a subject holding an email address looks like phishing to mail filters.
+const testNote = (to: string) => `Pre-launch test: this email would have gone to ${to}.`;
+
+const withTestNote = (html: string, to: string) => {
+  const note = `<div style="padding:8px 12px;background:#fff4d6;border-bottom:1px solid #e8d49a;font:600 12px Arial, sans-serif;color:#5c4a12;text-align:center">${testNote(
+    to,
+  ).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`;
+  return /<body[^>]*>/i.test(html) ? html.replace(/<body[^>]*>/i, (tag) => tag + note) : note + html;
+};
+
+// The Resend body for one email.
 const toResend = (email: OutgoingEmail) => {
   const from =
     email.sender === "updates"
@@ -88,9 +99,9 @@ const toResend = (email: OutgoingEmail) => {
   return {
     from,
     to: [deliveryAddress(email.to)],
-    subject: isLive() ? email.subject : `[Test for ${email.to}] ${email.subject}`,
-    html: email.html,
-    text: email.text,
+    subject: email.subject,
+    html: isLive() ? email.html : withTestNote(email.html, email.to),
+    text: isLive() ? email.text : `${testNote(email.to)}\n\n${email.text}`,
     ...(replyTo.length > 0 ? { reply_to: replyTo.slice(0, MAX_REPLY_TO) } : {}),
   };
 };

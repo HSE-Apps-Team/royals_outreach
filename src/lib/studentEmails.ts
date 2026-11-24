@@ -2,8 +2,10 @@ import { db } from "@/db";
 import { categoryData, clubData, loggedHours, studentClubMembership, studentUserData } from "@/db/schema";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getSponsorsByClub } from "@/lib/coordinatorEmails";
+import type { EmailContact } from "@/lib/emailTemplates";
 import { cancelEmail, emailDisabledReason, sendEmail, type OutgoingEmail } from "@/lib/email";
 import { formatDate } from "@/lib/formatDate";
+import { fullName } from "@/lib/personName";
 import { getGoalProgressFor } from "@/lib/goalProgress";
 import {
   studentClubDecisionEmail,
@@ -23,8 +25,9 @@ import {
 //     Undo, a later change or a delete can cancel it first. Approvals show progress.
 //     For testing, CLUB_EMAIL_DELAY_MINUTES=0 sends it right away (Undo can no longer stop it).
 //
-// Every email comes from the updates@ sender, and replies go to the club's staff sponsors and
-// student execs.
+// Every email comes from the updates@ sender and lists the club's staff sponsors and student
+// execs as contacts. There is no Reply-To: replies pointing at district addresses from an
+// outside sender look like impersonation, and the school's filter quarantined them as phishing.
 //
 // These run after the response (next/server's after), so they never slow down or fail the
 // action that caused them: problems are logged, not thrown.
@@ -126,11 +129,11 @@ const progressFor = async (studentId: number, rows: LogRow[]): Promise<StudentEm
   return progress;
 };
 
-// Student execs of the club, who get replies along with the sponsors.
+// Student execs of the club, listed as contacts after the sponsors.
 // TODO: once roles are in use, only execs whose role has access to hour requests.
-const getExecEmails = async (clubId: number): Promise<string[]> => {
+const getExecContacts = async (clubId: number): Promise<EmailContact[]> => {
   const rows = await db
-    .select({ email: studentUserData.email })
+    .select({ email: studentUserData.email, fName: studentUserData.fName, lName: studentUserData.lName })
     .from(studentClubMembership)
     .innerJoin(studentUserData, eq(studentUserData.studentId, studentClubMembership.studentId))
     .where(
@@ -141,31 +144,31 @@ const getExecEmails = async (clubId: number): Promise<string[]> => {
         isNotNull(studentUserData.email),
       ),
     );
-  return rows.map((r) => r.email!.trim()).filter(Boolean);
+  return rows
+    .filter((r) => r.email?.trim())
+    .map((r) => ({
+      name: fullName({ fName: r.fName ?? "", lName: r.lName ?? "" }) || "Club Exec",
+      email: r.email!.trim(),
+    }));
 };
 
-// The club's staff sponsors (listed in deny emails) and everyone a reply goes to: the sponsors
-// and the student execs, each once, never the student the email is for.
-const contactsFor = async (clubId: number | null, studentEmail: string) => {
-  if (clubId === null) return { sponsors: [], replyTo: [] };
-  const [byClub, execs] = await Promise.all([getSponsorsByClub([clubId]), getExecEmails(clubId)]);
-  const sponsors = byClub.get(clubId) ?? [];
+// The club's staff sponsors, then its student execs, each once, never the student the
+// email is for.
+const contactsFor = async (clubId: number | null, studentEmail: string): Promise<EmailContact[]> => {
+  if (clubId === null) return [];
+  const [byClub, execs] = await Promise.all([getSponsorsByClub([clubId]), getExecContacts(clubId)]);
   const seen = new Set([studentEmail.toLowerCase()]);
-  const replyTo: string[] = [];
-  for (const email of [...sponsors.map((s) => s.email), ...execs]) {
-    const key = email.toLowerCase();
+  const contacts: EmailContact[] = [];
+  for (const contact of [...(byClub.get(clubId) ?? []), ...execs]) {
+    const key = contact.email.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    replyTo.push(email);
+    contacts.push(contact);
   }
-  return { sponsors, replyTo };
+  return contacts;
 };
 
-const fromUpdates = (email: OutgoingEmail, replyTo: string[]): OutgoingEmail => ({
-  ...email,
-  sender: "updates",
-  replyTo,
-});
+const fromUpdates = (email: OutgoingEmail): OutgoingEmail => ({ ...email, sender: "updates" });
 
 //--------------------------------------------------------------------------------------//
 //                                   Sent Right Away                                    //
@@ -188,7 +191,7 @@ export async function emailLogSubmitted(num: number): Promise<void> {
             : undefined;
     if (next === undefined) return;
 
-    const [progress, { replyTo }] = await Promise.all([
+    const [progress, contacts] = await Promise.all([
       next === null ? progressFor(r.studentId, [r]) : Promise.resolve([]),
       contactsFor(r.clubId, r.studentEmail),
     ]);
@@ -199,9 +202,10 @@ export async function emailLogSubmitted(num: number): Promise<void> {
       next,
       clubReviewsAfter: next === "coordinator" && !!r.needsClubConfirmation,
       progress,
+      contacts,
     });
 
-    const result = await sendEmail(fromUpdates(email, replyTo));
+    const result = await sendEmail(fromUpdates(email));
     if ("error" in result) report(`log ${num} submitted`, result.error);
   } catch (error) {
     report(`log ${num} submitted`, error);
@@ -223,7 +227,7 @@ export async function emailCoordinatorDecision(num: number): Promise<void> {
     if (!matches) return;
 
     const counts = r.status === "Approved";
-    const [progress, { sponsors, replyTo }] = await Promise.all([
+    const [progress, contacts] = await Promise.all([
       counts ? progressFor(r.studentId, [r]) : Promise.resolve([]),
       contactsFor(r.clubId, r.studentEmail),
     ]);
@@ -234,10 +238,10 @@ export async function emailCoordinatorDecision(num: number): Promise<void> {
       approved,
       waitingOnClub: r.status === "Pending Club Verification",
       progress,
-      sponsors,
+      contacts,
     });
 
-    const result = await sendEmail(fromUpdates(email, replyTo));
+    const result = await sendEmail(fromUpdates(email));
     if ("error" in result) report(`log ${num} coordinator decision`, result.error);
   } catch (error) {
     report(`log ${num} coordinator decision`, error);
@@ -306,7 +310,7 @@ const scheduleClubEmails = async (nums: number[], depth = 0): Promise<void> => {
     const approved = first.status === "Approved";
     const groupNums = group.map((r) => r.num);
     try {
-      const [progress, { sponsors, replyTo }] = await Promise.all([
+      const [progress, contacts] = await Promise.all([
         approved ? progressFor(first.studentId!, group) : Promise.resolve([]),
         contactsFor(first.clubId, first.studentEmail!),
       ]);
@@ -317,13 +321,13 @@ const scheduleClubEmails = async (nums: number[], depth = 0): Promise<void> => {
         approved,
         logs: group.map(toEmailLog),
         progress,
-        sponsors,
+        contacts,
       });
 
       // With no delay it goes out now, and its rows count as already sent
       const delay = clubEmailDelayMs();
       const sendAt = new Date(Date.now() + delay);
-      const result = await sendEmail(fromUpdates(email, replyTo), delay > 0 ? { scheduledAt: sendAt } : {});
+      const result = await sendEmail(fromUpdates(email), delay > 0 ? { scheduledAt: sendAt } : {});
       if ("error" in result) {
         report(`schedule club email for logs ${groupNums.join(", ")}`, result.error);
         continue;

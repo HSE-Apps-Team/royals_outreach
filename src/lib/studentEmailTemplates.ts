@@ -20,8 +20,8 @@ import {
 import { formatHours } from "@/lib/formatHours";
 import { plural } from "@/lib/plural";
 
-// The emails a student gets about their own hour requests. When each one is sent, its sender
-// and who replies go to are decided in src/lib/studentEmails.ts. Markup follows
+// The emails a student gets about their own hour requests. When each one is sent and who is
+// listed as a contact are decided in src/lib/studentEmails.ts. Markup follows
 // emailTemplates.ts: tables and inline styles.
 
 const GREEN = "#1e7e34";
@@ -66,7 +66,8 @@ type StudentEmailBase = {
 //                                       Helpers                                        //
 //--------------------------------------------------------------------------------------//
 
-const FOOTER = "You get these emails when hours you log are submitted, verified or reviewed.";
+const FOOTER =
+  "You get these emails when hours you log are submitted, verified or reviewed. Replies to this address are not read, so please email your club contacts instead.";
 
 const greetingFor = (firstName: string) => (firstName ? `Hi ${firstName},` : "Hi,");
 
@@ -182,11 +183,13 @@ const reasonHtml = (reason: string) =>
     ? `<div style="margin:0 0 14px;padding:10px 12px;border-radius:6px;background:${RED_TINT};border-left:4px solid ${RED};font-size:14px"><strong>Reason:</strong> ${escape(reason)}</div>`
     : "";
 
-const contactHtml = (sponsors: EmailContact[]) =>
-  sponsors.length > 0
+// The club's staff sponsors and execs, listed in the body instead of a Reply-To: a reply going
+// to district addresses from an outside sender looks like impersonation to the school's filter.
+const contactHtml = (contacts: EmailContact[]) =>
+  contacts.length > 0
     ? paragraph(
         `If you have questions, contact ${joinOr(
-          sponsors.map(
+          contacts.map(
             (s) =>
               `${escape(s.name)} <a href="mailto:${escape(s.email)}" style="color:${BLUE};font-weight:600">${escape(s.email)}</a>`,
           ),
@@ -194,8 +197,8 @@ const contactHtml = (sponsors: EmailContact[]) =>
       )
     : "";
 
-const contactText = (sponsors: EmailContact[]) =>
-  sponsors.length > 0 ? ["", `If you have questions, contact ${joinOr(sponsors.map((s) => `${s.name} ${s.email}`))}.`] : [];
+const contactText = (contacts: EmailContact[]) =>
+  contacts.length > 0 ? ["", `If you have questions, contact ${joinOr(contacts.map((s) => `${s.name} ${s.email}`))}.`] : [];
 
 const textEmail = (lines: string[]) =>
   [...lines, "", `See all your requests: ${myRequestsLink()}`, "", "Royals Outreach · Hamilton Southeastern High School"].join(
@@ -222,12 +225,15 @@ export function studentLogSubmittedEmail({
   next,
   clubReviewsAfter = false,
   progress = [],
+  contacts = [],
 }: StudentEmailBase & {
   log: StudentEmailLog;
   next: StudentNextStep;
   /** The club reviews it after the coordinator verifies it. */
   clubReviewsAfter?: boolean;
   progress?: StudentEmailProgress[];
+  /** The club's staff sponsors and execs, for questions. */
+  contacts?: EmailContact[];
 }): OutgoingEmail {
   const counted = next === null;
   const subject = `${counted ? "Hours logged" : "Hours submitted"}: ${shortName(log.opportunity)}`;
@@ -255,7 +261,8 @@ export function studentLogSubmittedEmail({
       ${paragraph(escape(greetingFor(firstName)))}
       ${paragraph(intro.html)}
       ${detailHtml(log)}
-      <p style="margin:14px 0 0">${nextStep.html}</p>
+      <p style="margin:14px 0">${nextStep.html}</p>
+      ${contactHtml(contacts)}
       ${progressHtml(progress)}
       ${button("View My Requests", myRequestsLink())}`,
     footer: counted
@@ -271,6 +278,7 @@ export function studentLogSubmittedEmail({
     ...detailText(log),
     "",
     nextStep.text,
+    ...contactText(contacts),
     ...progressText(progress),
   ]);
 
@@ -289,7 +297,7 @@ export function studentCoordinatorDecisionEmail({
   approved,
   waitingOnClub,
   progress = [],
-  sponsors = [],
+  contacts = [],
 }: StudentEmailBase & {
   log: StudentEmailLog;
   approved: boolean;
@@ -297,8 +305,8 @@ export function studentCoordinatorDecisionEmail({
   waitingOnClub: boolean;
   /** Shown once the hours count (approved with no club step). */
   progress?: StudentEmailProgress[];
-  /** Club sponsors, listed on a deny. */
-  sponsors?: EmailContact[];
+  /** The club's staff sponsors and execs, for questions. */
+  contacts?: EmailContact[];
 }): OutgoingEmail {
   const coordinator = log.coordinatorName || "Your coordinator";
   const verb = approved ? "verified" : "did not verify";
@@ -329,7 +337,7 @@ export function studentCoordinatorDecisionEmail({
       ${approved ? "" : reasonHtml(log.denyMessage)}
       ${paragraph(`<span style="color:${GRAY};font-weight:600">${escape(clubLine)}</span>`)}
       ${paragraph(nextStep.html)}
-      ${approved ? "" : contactHtml(sponsors)}
+      ${contactHtml(contacts)}
       ${progressHtml(progress)}
       ${button("View My Requests", myRequestsLink())}`,
     footer: FOOTER,
@@ -343,7 +351,7 @@ export function studentCoordinatorDecisionEmail({
     clubLine,
     "",
     nextStep.text,
-    ...(approved ? [] : contactText(sponsors)),
+    ...contactText(contacts),
     ...progressText(progress),
   ]);
 
@@ -363,15 +371,15 @@ export function studentClubDecisionEmail({
   approved,
   logs,
   progress = [],
-  sponsors = [],
+  contacts = [],
 }: StudentEmailBase & {
   club: string;
   approved: boolean;
   logs: StudentEmailLog[];
   /** Approvals only: each category the hours counted toward. */
   progress?: StudentEmailProgress[];
-  /** Club sponsors, listed on a deny. */
-  sponsors?: EmailContact[];
+  /** The club's staff sponsors and execs, for questions. */
+  contacts?: EmailContact[];
 }): OutgoingEmail {
   const one = logs.length === 1;
   const total = roundHours(logs.reduce((sum, l) => sum + l.hours, 0));
@@ -409,7 +417,7 @@ export function studentClubDecisionEmail({
       ${paragraph(intro.html)}
       ${list(rows)}
       <div style="height:14px;line-height:14px;font-size:0">&nbsp;</div>
-      ${approved ? "" : contactHtml(sponsors)}
+      ${contactHtml(contacts)}
       ${progressHtml(progress)}
       ${button("View My Requests", myRequestsLink())}`,
     footer: FOOTER,
@@ -426,7 +434,7 @@ export function studentClubDecisionEmail({
           !approved && l.denyMessage ? `\n  Reason: ${l.denyMessage}` : ""
         }`,
     ),
-    ...(approved ? [] : contactText(sponsors)),
+    ...contactText(contacts),
     ...progressText(progress),
   ]);
 
