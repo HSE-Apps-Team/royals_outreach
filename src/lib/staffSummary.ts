@@ -13,6 +13,7 @@ import {
   studentUserData,
 } from "@/db/schema";
 import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { REMINDER_DAYS } from "@/lib/coordinatorEmails";
 import { appUrl, deliveryAddress, emailDisabledReason, sendEmail } from "@/lib/email";
 import { fullName } from "@/lib/personName";
 import { daysBetween, schoolDateOf, schoolMoment, schoolToday } from "@/lib/schoolDate";
@@ -27,6 +28,8 @@ import { staffWeeklySummaryEmail, type StaffWeeklySummary } from "@/lib/staffEma
 // the sponsor, club and week, so a repeated run that week does not send it twice.
 
 const COORDINATOR_OVERDUE_DAYS = 7;
+// Requests listed under Waiting On Coordinators; the rest are counted.
+const COORDINATOR_LIST_LIMIT = 25;
 
 export type StaffSummaryOptions = {
   /** Build the emails without sending anything. */
@@ -49,6 +52,25 @@ export type StaffSummaryReport = {
 const roundHours = (hours: number) => Math.round(hours * 100) / 100;
 
 const addDays = (iso: string, days: number) => new Date(Date.parse(iso) + days * 86_400_000).toISOString().slice(0, 10);
+
+// Coordinator emails sent about a request so far, worked out from the schedule rather than
+// stored: the first at 9am the day after it was logged, then a reminder every REMINDER_DAYS.
+// Summaries go out before 9am, so today's email (if any) has not gone out yet. Only used once
+// the request has been emailed at least once (manual sends while the site gate is on can make
+// the real number differ).
+const COORDINATOR_EMAIL_HOUR = 9;
+const coordinatorEmailsSoFar = (loggedOn: string, today: string) => {
+  const firstEmailDay = new Date(Date.parse(loggedOn) + 86_400_000).toISOString().slice(0, 10);
+  const pastNine =
+    Number(
+      new Intl.DateTimeFormat("en-US", { timeZone: "America/Indiana/Indianapolis", hour: "numeric", hourCycle: "h23" }).format(
+        new Date(),
+      ),
+    ) >= COORDINATOR_EMAIL_HOUR;
+  // Days of emails that have already happened, counting today only once 9am has passed
+  const days = daysBetween(firstEmailDay, today) - (pastNine ? 0 : 1);
+  return days < 0 ? 1 : Math.floor(days / REMINDER_DAYS) + 1;
+};
 
 const nameOf = (fName: string | null, lName: string | null) =>
   fullName({ fName: fName ?? "", lName: lName ?? "" }) || "A student";
@@ -81,7 +103,7 @@ const summarizeClub = async (
   const submittedLastWeek = and(inClub, gte(loggedHours.submittedAt, week.start), lt(loggedHours.submittedAt, week.end));
   const decidedLastWeek = and(inClub, gte(loggedHours.decidedAt, week.start), lt(loggedHours.decidedAt, week.end));
 
-  const [members, categories, groupLinks, approvedLogged, approvedAdded, submitted, decided, waiting, top] =
+  const [members, categories, groupLinks, approvedLogged, approvedAdded, submitted, decided, waiting, top, onCoordinators] =
     await Promise.all([
       db
         .select({ studentId: studentClubMembership.studentId, isExec: studentClubMembership.is_exec })
@@ -159,6 +181,23 @@ const summarizeClub = async (
         .groupBy(loggedHours.studentId, studentUserData.fName, studentUserData.lName)
         .orderBy(sql`sum(${loggedHours.hours}) desc`)
         .limit(5),
+      // Each request waiting on a coordinator, oldest first
+      db
+        .select({
+          fName: studentUserData.fName,
+          lName: studentUserData.lName,
+          opportunity: loggedHours.opportunityName,
+          organization: loggedHours.orgName,
+          coordinatorName: loggedHours.coordinatorName,
+          coordinatorEmail: loggedHours.coordinatorEmail,
+          submittedAt: loggedHours.submittedAt,
+          date: loggedHours.date,
+          emailedAt: loggedHours.coordinatorEmailedAt,
+        })
+        .from(loggedHours)
+        .leftJoin(studentUserData, eq(studentUserData.studentId, loggedHours.studentId))
+        .where(and(inClub, eq(loggedHours.status, "Pending Email Verification")))
+        .orderBy(sql`${loggedHours.submittedAt} asc nulls first`, loggedHours.num),
     ]);
 
   // Approved hours by student and category, logged and added together
@@ -249,6 +288,21 @@ const summarizeClub = async (
         averagePercent: c.goal > 0 ? Math.round((c.percentTotal / c.members) * 100) : null,
       })),
     topStudents: top.map((t) => ({ name: nameOf(t.fName, t.lName), hours: roundHours(t.hours) })),
+    coordinatorRequests: onCoordinators.slice(0, COORDINATOR_LIST_LIMIT).map((r) => {
+      // Rows logged before submitted_at existed fall back to the volunteer date
+      const loggedOn = r.submittedAt ? schoolDateOf(r.submittedAt) : (r.date ?? week.today);
+      return {
+        student: nameOf(r.fName, r.lName),
+        opportunity: r.opportunity ?? "",
+        organization: r.organization ?? "",
+        coordinatorName: r.coordinatorName ?? "",
+        coordinatorEmail: r.coordinatorEmail ?? "",
+        loggedOn,
+        daysWaiting: Math.max(0, daysBetween(loggedOn, week.today)),
+        emailsSent: r.emailedAt ? coordinatorEmailsSoFar(loggedOn, week.today) : 0,
+      };
+    }),
+    moreCoordinatorRequests: Math.max(0, onCoordinators.length - COORDINATOR_LIST_LIMIT),
     links: {
       requests: `${appUrl()}/club/${clubId}/requests`,
       progress: `${appUrl()}/club/${clubId}/progress`,

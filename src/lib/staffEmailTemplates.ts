@@ -46,8 +46,26 @@ export type StaffWeeklySummary = {
   };
   categories: { name: string; goal: number; members: number; met: number; averagePercent: number | null }[];
   topStudents: { name: string; hours: number }[];
+  /** Requests waiting on a coordinator's email answer, oldest first (up to 25). */
+  coordinatorRequests: {
+    student: string;
+    opportunity: string;
+    organization: string;
+    coordinatorName: string;
+    coordinatorEmail: string;
+    /** ISO date the student logged it. */
+    loggedOn: string;
+    daysWaiting: number;
+    /** Coordinator emails sent about it so far (worked out from the email schedule). */
+    emailsSent: number;
+  }[];
+  /** Waiting requests past the 25 listed. */
+  moreCoordinatorRequests: number;
   links: { requests: string; progress: string };
 };
+
+/** Past this many coordinator emails, a request is shown in red. */
+export const EMAILS_SENT_WARNING = 3;
 
 //--------------------------------------------------------------------------------------//
 //                                       Helpers                                        //
@@ -102,6 +120,56 @@ const bar = (percent: number, color: string) => {
     </tr></table>`;
 };
 
+// "1 email sent to the coordinator so far", or that none has gone out yet.
+const emailsSentLine = (count: number) =>
+  count === 0
+    ? "No email sent to the coordinator yet (the first goes out the morning after it is logged)"
+    : `${plural(count, "email")} sent to the coordinator so far`;
+
+const waitedLine = (r: StaffWeeklySummary["coordinatorRequests"][number]) =>
+  `Logged ${formatDate(r.loggedOn)} · waiting ${r.daysWaiting === 0 ? "since today" : plural(r.daysWaiting, "day")}`;
+
+// Waiting On Coordinators: every request still waiting on its coordinator, oldest first. One
+// that has been emailed about more than EMAILS_SENT_WARNING times is shown in red.
+const coordinatorSection = (s: StaffWeeklySummary) => {
+  if (s.coordinatorRequests.length === 0) return "";
+  const rows = s.coordinatorRequests.map((r) => {
+    const urgent = r.emailsSent > EMAILS_SENT_WARNING;
+    const coordinator = [r.coordinatorName, r.coordinatorEmail && `(${r.coordinatorEmail})`].filter(Boolean).join(" ");
+    return `
+      <tr><td style="padding:12px 0 12px ${urgent ? "12px" : "0"};border-bottom:2px solid ${SILVER};${urgent ? `border-left:4px solid ${RED};background:${RED_TINT};` : ""}">
+        <div style="font:700 14px/1.4 ${FONT};color:${BLUE}">${escape(r.student)}</div>
+        <div style="font:400 14px/1.45 ${FONT};color:${INK}">${escape([r.opportunity, r.organization].filter(Boolean).join(" · "))}</div>
+        ${coordinator ? `<div style="font:600 13px/1.45 ${FONT};color:${GRAY}">Coordinator: ${escape(coordinator)}</div>` : ""}
+        <div style="font:600 13px/1.45 ${FONT};color:${GRAY}">${escape(waitedLine(r))}</div>
+        <div style="margin-top:4px;font:700 13px/1.45 ${FONT};color:${urgent ? RED : INK}">${escape(emailsSentLine(r.emailsSent))}</div>
+      </td></tr>`;
+  });
+  return `
+    ${section(`Waiting On Coordinators (${s.waiting.coordinator})`)}
+    <p style="margin:-4px 0 10px;font:600 13px ${FONT};color:${GRAY}">Oldest first. Red means the coordinator has been emailed more than ${EMAILS_SENT_WARNING} times, so it may be worth reaching out to the student.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:2px solid ${SILVER}">${rows.join("")}</table>
+    ${
+      s.moreCoordinatorRequests > 0
+        ? `<p style="margin:8px 0 0;font:600 13px ${FONT};color:${GRAY}">And ${plural(s.moreCoordinatorRequests, "more request")} on Hour Requests.</p>`
+        : ""
+    }`;
+};
+
+const coordinatorText = (s: StaffWeeklySummary) =>
+  s.coordinatorRequests.length === 0
+    ? []
+    : [
+        "",
+        `WAITING ON COORDINATORS (${s.waiting.coordinator}), oldest first`,
+        ...s.coordinatorRequests.map(
+          (r) =>
+            `- ${r.emailsSent > EMAILS_SENT_WARNING ? "[!] " : ""}${r.student}: ${[r.opportunity, r.organization].filter(Boolean).join(", ")}. ` +
+            `Coordinator: ${[r.coordinatorName, r.coordinatorEmail].filter(Boolean).join(" ")}. ${waitedLine(r)}. ${emailsSentLine(r.emailsSent)}.`,
+        ),
+        ...(s.moreCoordinatorRequests > 0 ? [`And ${plural(s.moreCoordinatorRequests, "more request")} on Hour Requests.`] : []),
+      ];
+
 //--------------------------------------------------------------------------------------//
 //                                        Email                                         //
 //--------------------------------------------------------------------------------------//
@@ -140,7 +208,7 @@ export function staffWeeklySummaryEmail({
     attention.push({
       tone: s.waiting.coordinatorOverdue > 0 ? "amber" : "blue",
       title: `${plural(s.waiting.coordinator, "request")} waiting on coordinators to verify`,
-      detail: `${overdue}Coordinators get weekly reminders on their own. The club can also approve a request without them.`,
+      detail: `${overdue}They are listed below, oldest first. Coordinators get weekly reminders on their own, and the club can approve a request without them.`,
       text: `${plural(s.waiting.coordinator, "request")} waiting on coordinators to verify. ${overdue}Coordinators get weekly reminders on their own.`,
     });
   }
@@ -192,6 +260,7 @@ export function staffWeeklySummaryEmail({
         ${attention.map((a) => callout(a.tone, escape(a.title), escape(a.detail))).join("")}
       </table>
       ${s.waiting.club > 0 ? button("Review Hour Requests", s.links.requests) : ""}
+      ${coordinatorSection(s)}
 
       ${section("Last Week")}
       ${
@@ -253,6 +322,7 @@ export function staffWeeklySummaryEmail({
     "NEEDS ATTENTION",
     ...attention.map((a) => `- ${a.text}`),
     ...(s.waiting.club > 0 ? [`Review hour requests: ${s.links.requests}`] : []),
+    ...coordinatorText(s),
     "",
     "LAST WEEK",
     ...(quiet
