@@ -6,6 +6,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { getClubConfigById } from "@/actions/club";
 import { getClubCategories } from "@/actions/categories";
 import { getClubMembers } from "@/actions/members";
+import { sendStaffWeeklySummaries } from "@/lib/staffSummary";
 
 /** Hours toward one category goal. Value is approved hours; pending still waits on verification. */
 export type CategoryHours = {
@@ -192,4 +193,23 @@ export const getClubProgress = async (
       categories: totalCategories,
     },
   };
+};
+
+//--------------------------------------------------------------------------------------//
+//                                        Email                                         //
+//--------------------------------------------------------------------------------------//
+
+// For testing: sends this club's weekly staff summary to its sponsors right away, covering the
+// last 7 days, even if this week's already went out.
+// TODO: remove the Send Advisor Report Now button and this action before launch.
+export const sendStaffSummaryNow = async (
+  clubId: number,
+): Promise<{ success: true; sent: number } | { success: false; error: string }> => {
+  if (!Number.isInteger(clubId)) return { success: false, error: "Club not found." };
+
+  const report = await sendStaffWeeklySummaries({ clubId, now: true });
+  if (report.disabled) return { success: false, error: `Email is off. ${report.disabled}` };
+  if (report.errors.length > 0) return { success: false, error: report.errors[0] };
+  if (report.emails === 0) return { success: false, error: "This club has no staff sponsors with an email address." };
+  return { success: true, sent: report.sent };
 };

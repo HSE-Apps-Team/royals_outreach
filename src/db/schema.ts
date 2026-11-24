@@ -174,6 +174,9 @@ export const loggedHours = pgTable("logged_hours", {
   // When this request was last in the coordinator's daily email. Null means they have not
   // been told about it yet (a new request, or the student changed the coordinator's email).
   coordinatorEmailedAt: timestamp("coordinator_emailed_at", { withTimezone: true }),
+  // When the request last became Approved or Denied, by anyone. Null while it is pending, and on
+  // rows decided before this column was added. The staff weekly summary counts by it.
+  decidedAt:            timestamp("decided_at", { withTimezone: true }),
   // The student's email about the club's approve or deny, scheduled in Resend a few minutes
   // ahead so an Undo can cancel it. Rows in one email share its id. The email has gone out
   // once student_email_send_at is past. See src/lib/studentEmails.ts.

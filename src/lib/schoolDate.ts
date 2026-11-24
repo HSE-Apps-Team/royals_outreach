@@ -16,3 +16,16 @@ export function schoolDateOf(moment: Date): string {
 export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 86_400_000);
 }
+
+// A wall-clock time on a school date as a moment, e.g. ("2026-11-30", 0, 0) is midnight in
+// Indiana that day, whether daylight saving time is on (UTC-4) or off (UTC-5).
+export function schoolMoment(isoDate: string, hour: number, minute: number): Date {
+  const wallClock = Date.parse(`${isoDate}T00:00:00Z`) + (hour * 60 + minute) * 60_000;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  for (const offset of [4, 5]) {
+    const guess = new Date(wallClock + offset * 3_600_000);
+    const local = guess.toLocaleString("sv-SE", { timeZone: SCHOOL_TIME_ZONE }).slice(0, 16);
+    if (local === `${isoDate} ${pad(hour)}:${pad(minute)}`) return guess;
+  }
+  return new Date(wallClock + 5 * 3_600_000);
+}

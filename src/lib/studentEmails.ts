@@ -3,11 +3,12 @@ import { categoryData, clubData, loggedHours, studentClubMembership, studentUser
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getSponsorsByClub } from "@/lib/coordinatorEmails";
 import type { EmailContact } from "@/lib/emailTemplates";
-import { cancelEmail, emailDisabledReason, sendEmail, type OutgoingEmail } from "@/lib/email";
+import { cancelEmail, emailDisabledReason, inBatches, sendEmail, sendEmailBatch, type OutgoingEmail } from "@/lib/email";
 import { formatDate } from "@/lib/formatDate";
 import { fullName } from "@/lib/personName";
 import { getGoalProgressFor } from "@/lib/goalProgress";
 import {
+  studentAddedToClubEmail,
   studentClubDecisionEmail,
   studentCoordinatorDecisionEmail,
   studentLogSubmittedEmail,
@@ -15,7 +16,8 @@ import {
   type StudentEmailProgress,
 } from "@/lib/studentEmailTemplates";
 
-// Emails to students about their own hour requests:
+// Emails to students. When a club adds them (or adds them back), a welcome with the club's
+// hour categories. Being removed sends nothing. And about their own hour requests:
 //   - Log submitted: right after they log hours. Hours that need no verification count at
 //     once, so that email shows their progress too.
 //   - Coordinator decision: right after the coordinator verifies or denies on the coordinator
@@ -377,5 +379,59 @@ export async function cancelDeletedClubEmails(emailIds: (string | null)[]): Prom
     await scheduleClubEmails(freed);
   } catch (error) {
     report(`club emails after delete`, error);
+  }
+}
+
+//--------------------------------------------------------------------------------------//
+//                                    Added To Club                                     //
+//--------------------------------------------------------------------------------------//
+
+/**
+ * The welcome email when a club adds students or makes inactive members active again. It lists
+ * every category of the club: a new member is in no group yet, so all of them apply.
+ */
+export async function emailAddedToClub(clubId: number, studentIds: number[]): Promise<void> {
+  if (studentIds.length === 0 || emailDisabledReason()) return;
+  try {
+    const [club] = await db
+      .select({ clubName: clubData.clubName, isDeleted: clubData.isDeleted })
+      .from(clubData)
+      .where(eq(clubData.clubId, clubId));
+    if (!club || club.isDeleted) return;
+
+    const [categories, students, allContacts] = await Promise.all([
+      db.select().from(categoryData).where(eq(categoryData.clubId, clubId)).orderBy(categoryData.categoryId),
+      db
+        .select({ email: studentUserData.email, fName: studentUserData.fName })
+        .from(studentUserData)
+        .where(inArray(studentUserData.studentId, studentIds)),
+      contactsFor(clubId, ""),
+    ]);
+
+    const emails = students
+      .filter((s) => s.email?.trim())
+      .map((s) =>
+        fromUpdates(
+          studentAddedToClubEmail({
+            to: s.email!.trim(),
+            firstName: s.fName ?? "",
+            club: club.clubName ?? "your club",
+            categories: categories.map((c) => ({
+              name: c.categoryName ?? "",
+              goal: c.goal ?? 0,
+              needsEmailVerification: !!c.needsEmailVerification,
+              needsClubConfirmation: !!c.needsClubConfirmation,
+            })),
+            contacts: allContacts.filter((c) => c.email.toLowerCase() !== s.email!.trim().toLowerCase()),
+          }),
+        ),
+      );
+
+    for (const batch of inBatches(emails)) {
+      const result = await sendEmailBatch(batch);
+      if ("error" in result) report(`added to club ${clubId}`, result.error);
+    }
+  } catch (error) {
+    report(`added to club ${clubId}`, error);
   }
 }

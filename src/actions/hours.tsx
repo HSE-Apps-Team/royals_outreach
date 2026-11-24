@@ -190,6 +190,7 @@ export const logHours = async (
     optionalMessage: fields.message || null,
     status,
     submittedAt: new Date(),
+    decidedAt: status === "Approved" ? new Date() : null,
   }).returning({ num: loggedHours.num });
 
   // The student's confirmation email, sent after the response so logging stays quick

@@ -15,6 +15,8 @@ import {
 } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
+import { after } from "next/server";
+import { emailAddedToClub } from "@/lib/studentEmails";
 import { toTitleCase } from "@/lib/toTitleCase";
 import { STUDENT_EMAIL_DOMAIN, isStudentEmail } from "@/lib/studentEmail";
 
@@ -269,6 +271,8 @@ export const addStudentsToClub = async (
     await db.insert(studentClubMembership).values(
       newMembers.map((studentId) => ({ clubId, studentId, membership_status: true, is_exec: false })),
     );
+    // A welcome email to each new member (reactivated ones get theirs from setMembersActive)
+    after(() => emailAddedToClub(clubId, newMembers));
   }
   if (inactiveMembers.length > 0) {
     await setMembersActive(clubId, inactiveMembers, true);
@@ -281,15 +285,26 @@ export const addStudentsToClub = async (
 //                                        Update                                        //
 //--------------------------------------------------------------------------------------//
 
-// Deactivating keeps the membership and all club history
+// Deactivating keeps the membership and all club history. Making an inactive member active
+// again emails them like a new member; deactivating sends nothing.
 export const setMembersActive = async (clubId: number, studentIds: number[], active: boolean) => {
   const ids = toIds(studentIds);
   if (ids.length === 0) return { success: true, count: 0 };
 
-  await db
+  const changed = await db
     .update(studentClubMembership)
     .set({ membership_status: active })
-    .where(and(eq(studentClubMembership.clubId, clubId), inArray(studentClubMembership.studentId, ids)));
+    .where(
+      and(
+        eq(studentClubMembership.clubId, clubId),
+        inArray(studentClubMembership.studentId, ids),
+        sql`coalesce(${studentClubMembership.membership_status}, true) <> ${active}`,
+      ),
+    )
+    .returning({ studentId: studentClubMembership.studentId });
+
+  const reactivated = changed.flatMap((m) => (m.studentId === null ? [] : [m.studentId]));
+  if (active && reactivated.length > 0) after(() => emailAddedToClub(clubId, reactivated));
   return { success: true, count: ids.length };
 };
 

@@ -161,6 +161,7 @@ export const approveAsCoordinator = async (token: string, requestId: number): Pr
     .update(loggedHours)
     .set({
       status: row.needsClubConfirmation ? "Pending Club Verification" : "Approved",
+      decidedAt: row.needsClubConfirmation ? null : new Date(),
       denyMessage: null,
       coordinatorDecision: "Approved",
       coordinatorDecidedAt: new Date(),
@@ -192,6 +193,7 @@ export const denyAsCoordinator = async (
     .update(loggedHours)
     .set({
       status: "Denied",
+      decidedAt: new Date(),
       denyMessage: denyMessage || null,
       coordinatorDecision: "Denied",
       coordinatorDecidedAt: new Date(),

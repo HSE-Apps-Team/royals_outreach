@@ -440,3 +440,94 @@ export function studentClubDecisionEmail({
 
   return { to, subject, html, text };
 }
+
+//--------------------------------------------------------------------------------------//
+//                                    Added To Club                                     //
+//--------------------------------------------------------------------------------------//
+
+/** A category of the club the student joined, with what its hours need. */
+export type StudentEmailCategory = {
+  name: string;
+  /** 0 when the category has no goal. */
+  goal: number;
+  needsEmailVerification: boolean;
+  needsClubConfirmation: boolean;
+};
+
+const verificationNote = (c: StudentEmailCategory) =>
+  c.needsEmailVerification && c.needsClubConfirmation
+    ? "Verified by your coordinator, then the club"
+    : c.needsEmailVerification
+      ? "Verified by your coordinator"
+      : c.needsClubConfirmation
+        ? "Verified by the club"
+        : "Counts as soon as you log it";
+
+// A club added the student (or added them back after they were inactive).
+export function studentAddedToClubEmail({
+  to,
+  firstName,
+  club,
+  categories,
+  contacts = [],
+}: StudentEmailBase & {
+  club: string;
+  categories: StudentEmailCategory[];
+  /** The club's staff sponsors and execs, for questions. */
+  contacts?: EmailContact[];
+}): OutgoingEmail {
+  const subject = `You were added to ${club}`;
+  const intro = both([
+    "You were added to ",
+    { bold: club },
+    " on Royals Outreach. You can now log volunteer hours for the club and track your progress toward its goals.",
+  ]);
+  const logLink = `${appUrl()}/student/log`;
+
+  const rows = categories.map((c) =>
+    row(
+      escape(c.name),
+      [`<span style="color:${GRAY};font-weight:600;font-size:13px">${escape(verificationNote(c))}</span>`],
+      c.goal > 0 ? `${escape(formatHours(c.goal))} goal` : "",
+    ),
+  );
+
+  const html = layout({
+    preview: `You can now log hours for ${club}.`,
+    body: `
+      ${heading(`Welcome to ${club}`)}
+      ${paragraph(escape(greetingFor(firstName)))}
+      ${paragraph(intro.html)}
+      ${
+        categories.length > 0
+          ? `<h2 style="margin:18px 0 10px;font:700 16px ${FONT};color:${NAVY}">Hour Categories</h2>${list(rows)}<div style="height:14px;line-height:14px;font-size:0">&nbsp;</div>`
+          : ""
+      }
+      ${contactHtml(contacts)}
+      ${button("Log Hours", logLink)}`,
+    footer:
+      "You get this email when a club adds you on Royals Outreach. Replies to this address are not read, so please email your club contacts instead.",
+  });
+
+  const text = [
+    greetingFor(firstName),
+    "",
+    intro.text,
+    ...(categories.length > 0
+      ? [
+          "",
+          "Hour categories:",
+          ...categories.map(
+            (c) => `- ${c.name}${c.goal > 0 ? ` (${formatHours(c.goal)} goal)` : ""}: ${verificationNote(c)}`,
+          ),
+        ]
+      : []),
+    ...contactText(contacts),
+    "",
+    `Log hours: ${logLink}`,
+    "",
+    "Royals Outreach · Hamilton Southeastern High School",
+  ].join("\n");
+
+  return { to, subject, html, text };
+}

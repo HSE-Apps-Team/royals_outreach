@@ -161,7 +161,7 @@ export const getClubPendingRequestCount = async (clubId: number): Promise<number
 export const approveClubRequest = async (clubId: number, requestId: number): Promise<ClubRequestResult> => {
   const updated = await db
     .update(loggedHours)
-    .set({ status: "Approved", denyMessage: null, ...DROP_UNVERIFIED_COORDINATOR })
+    .set({ status: "Approved", decidedAt: new Date(), denyMessage: null, ...DROP_UNVERIFIED_COORDINATOR })
     .where(and(isClubRequest(clubId, requestId), inArray(loggedHours.status, PENDING_STATUSES)))
     .returning({ num: loggedHours.num });
 
@@ -181,7 +181,7 @@ export const denyClubRequest = async (
 
   const updated = await db
     .update(loggedHours)
-    .set({ status: "Denied", denyMessage: denyMessage || null, ...DROP_UNVERIFIED_COORDINATOR })
+    .set({ status: "Denied", decidedAt: new Date(), denyMessage: denyMessage || null, ...DROP_UNVERIFIED_COORDINATOR })
     .where(and(isClubRequest(clubId, requestId), inArray(loggedHours.status, PENDING_STATUSES)))
     .returning({ num: loggedHours.num });
 
@@ -198,7 +198,7 @@ export const approveClubRequests = async (clubId: number, ids: number[]): Promis
 
   const updated = await db
     .update(loggedHours)
-    .set({ status: "Approved", denyMessage: null, ...DROP_UNVERIFIED_COORDINATOR })
+    .set({ status: "Approved", decidedAt: new Date(), denyMessage: null, ...DROP_UNVERIFIED_COORDINATOR })
     .where(
       and(
         eq(loggedHours.clubId, clubId),
@@ -224,7 +224,7 @@ export const denyClubRequests = async (clubId: number, ids: number[], message: s
 
   const updated = await db
     .update(loggedHours)
-    .set({ status: "Denied", denyMessage: denyMessage || null, ...DROP_UNVERIFIED_COORDINATOR })
+    .set({ status: "Denied", decidedAt: new Date(), denyMessage: denyMessage || null, ...DROP_UNVERIFIED_COORDINATOR })
     .where(
       and(
         eq(loggedHours.clubId, clubId),
@@ -264,6 +264,7 @@ export const restoreClubRequests = async (
         .update(loggedHours)
         .set({
           status: s.status,
+          decidedAt: null,
           denyMessage: text(s.denyMessage, MAX_MESSAGE_LENGTH),
           coordinatorName: text(s.coordinatorName, 200),
           coordinatorEmail: text(s.coordinatorEmail, 320),
@@ -320,6 +321,9 @@ export const updateClubRequest = async (
       date: input.isoDate,
       categoryId: input.categoryId,
       status: input.status,
+      ...(input.status !== request.status
+        ? { decidedAt: input.status === "Approved" || input.status === "Denied" ? new Date() : null }
+        : {}),
       ...(input.status === "Denied" ? {} : { denyMessage: null }),
       ...(skipsEmail ? { coordinatorName: null, coordinatorEmail: null } : {}),
     })
@@ -376,6 +380,7 @@ export const addClubHours = async (
       hours: Number(hours),
       status: "Approved",
       submittedAt: new Date(),
+      decidedAt: new Date(),
     })
     .returning({ num: loggedHours.num });
 

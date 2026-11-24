@@ -9,15 +9,18 @@ import Select from "@/app/components/select";
 import ListRow from "@/app/components/listRow";
 import Badge from "@/app/components/badge";
 import EmptyState from "@/app/components/emptyState";
+import SaveButton from "@/app/components/saveButton";
+import { useToast } from "@/app/context/ToastContext";
 import "@/app/css/club.css";
 import { formatHours } from "@/lib/formatHours";
 import { percent } from "@/lib/percent";
 import { plural } from "@/lib/plural";
 import { fullName } from "@/lib/personName";
 
-import type { ClubProgress, StudentProgress } from "@/actions/clubProgress";
+import { sendStaffSummaryNow, type ClubProgress, type StudentProgress } from "@/actions/clubProgress";
 
 type HoursProgressUIProps = {
+  clubId: number;
   progress: ClubProgress;
 };
 
@@ -31,8 +34,22 @@ const progressLabel = (s: StudentProgress) => (s.noHoursNeeded ? "Exec" : `${per
 
 const hoursOf = (value: number, goal: number) => formatHours(value, goal).replace(" / ", " of ");
 
-export default function HoursProgressUI({ progress }: HoursProgressUIProps) {
+export default function HoursProgressUI({ clubId, progress }: HoursProgressUIProps) {
   const { clubName, groups, students, total } = progress;
+  const { showToast } = useToast();
+  const [isEmailing, setIsEmailing] = useState(false);
+
+  // TODO: testing only, remove before launch (with sendStaffSummaryNow)
+  const sendReportNow = async () => {
+    setIsEmailing(true);
+    const result = await sendStaffSummaryNow(clubId);
+    setIsEmailing(false);
+    if (!result.success) {
+      showToast(result.error, "danger");
+      return;
+    }
+    showToast(`Sent ${plural(result.sent, "advisor report")}.`);
+  };
 
   const [search, setSearch] = useState("");
   const [group, setGroup] = useState(ALL);
@@ -66,6 +83,12 @@ export default function HoursProgressUI({ progress }: HoursProgressUIProps) {
         title="Hours Progress"
         subtitle="Track club, category and student progress toward hour goals."
         clubName={clubName}
+        actions={
+          // TODO: testing only, remove before launch
+          <SaveButton size="sm" variant="secondary" icon="envelope" disabled={isEmailing} onClick={sendReportNow}>
+            {isEmailing ? "Sending..." : "Send Advisor Report Now"}
+          </SaveButton>
+        }
       />
 
       {total.categories.length === 0 ? (

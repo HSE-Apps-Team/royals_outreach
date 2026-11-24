@@ -20,5 +20,5 @@ async function HoursProgressLoader({ params }: { params: Promise<{ clubId: strin
   const progress = await getClubProgress(clubId);
   if (!progress) notFound();
 
-  return <HoursProgressUI progress={progress} />;
+  return <HoursProgressUI clubId={clubId} progress={progress} />;
 }

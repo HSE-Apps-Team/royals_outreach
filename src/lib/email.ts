@@ -144,11 +144,12 @@ const errorOf = async (response: Response) =>
 
 /**
  * Sends one email, or schedules it for later with scheduledAt. The id is what cancelEmail takes.
- * The idempotency key comes from the content (and send time), so a retry cannot send it twice.
+ * By default the idempotency key comes from the content (and send time), so a retry cannot send it
+ * twice. Pass idempotencyKey to name the email instead, so even a repeat with new content is sent once.
  */
 export async function sendEmail(
   email: OutgoingEmail,
-  { scheduledAt }: { scheduledAt?: Date } = {},
+  { scheduledAt, idempotencyKey }: { scheduledAt?: Date; idempotencyKey?: string } = {},
 ): Promise<{ id: string } | { error: string }> {
   const disabled = emailDisabledReason();
   if (disabled) return { error: disabled };
@@ -156,7 +157,7 @@ export async function sendEmail(
   const body = { ...toResend(email), ...(scheduledAt ? { scheduled_at: scheduledAt.toISOString() } : {}) };
   const response = await callResend(RESEND_URL, {
     method: "POST",
-    headers: { "Idempotency-Key": hash(body) },
+    headers: { "Idempotency-Key": idempotencyKey ? hash(idempotencyKey) : hash(body) },
     body: JSON.stringify(body),
   });
   if ("error" in response) return response;
