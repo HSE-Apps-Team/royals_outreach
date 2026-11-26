@@ -19,6 +19,7 @@
   min-width: 0;
   margin-left: var(--sidenav-width);
   padding: var(--space-8) var(--space-10) var(--space-12);
+  transition: margin-left var(--dur-base) ease;
 }
 
 /* Pair with <SideNav compact /> on wide screens */
@@ -64,6 +65,7 @@
   background: var(--navy);
   color: var(--white);
   font-family: var(--font-sans);
+  transition: width var(--dur-base) ease;
 }
 
 @media (max-width: 768px) {
@@ -75,6 +77,7 @@
 .side-nav-header {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
   padding: var(--space-5) var(--space-5) var(--space-6);
 }
 
@@ -301,39 +304,94 @@
   color: var(--secondarySilver);
 }
 
-/* Compact icon-only rail: forced by the `compact` prop ... */
-.side-nav.side-nav-compact {
+/* Header toggle that expands or collapses the rail */
+.side-nav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  padding: 0;
+  border: var(--border-input) solid var(--navHoverBorder);
+  border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--white);
+  font-size: 15px;
+  cursor: pointer;
+  transition: border-color var(--dur-base) ease;
+}
+
+.side-nav-toggle:hover {
+  border-color: var(--white);
+}
+
+.side-nav-toggle i {
+  transition: transform var(--dur-base) ease;
+}
+
+.side-nav-compact .side-nav-toggle,
+.side-nav-collapsed .side-nav-toggle {
+  margin-left: 0;
+}
+
+/* Tap-to-close shade behind the expanded nav on tablets */
+.side-nav-backdrop {
+  display: none;
+}
+
+/* Icon-only rail: the `compact` prop, or collapsed with the toggle ... */
+.side-nav.side-nav-compact,
+.side-nav.side-nav-collapsed {
   width: var(--sidenav-compact-width);
 }
 
-.side-nav-compact .side-nav-header {
+.side-nav-compact .side-nav-header,
+.side-nav-collapsed .side-nav-header {
+  flex-direction: column;
   justify-content: center;
+  gap: var(--space-3);
   padding: 18px 0 var(--space-5);
 }
 
 .side-nav-compact .side-nav-lockup,
+.side-nav-collapsed .side-nav-lockup,
 .side-nav-compact .side-nav-item-label,
+.side-nav-collapsed .side-nav-item-label,
 .side-nav-compact .side-nav-section-label,
+.side-nav-collapsed .side-nav-section-label,
 .side-nav-compact .side-nav-back-label,
-.side-nav-compact .side-nav-user-text {
+.side-nav-collapsed .side-nav-back-label,
+.side-nav-compact .side-nav-user-text,
+.side-nav-collapsed .side-nav-user-text {
   display: none;
 }
 
-.side-nav-compact .side-nav-items {
+.side-nav-compact .side-nav-toggle i,
+.side-nav-collapsed .side-nav-toggle i {
+  transform: rotate(180deg);
+}
+
+.side-nav-compact .side-nav-items,
+.side-nav-collapsed .side-nav-items {
   padding: 0 10px;
 }
 
-.side-nav-compact .side-nav-section {
+.side-nav-compact .side-nav-section,
+.side-nav-collapsed .side-nav-section {
   padding: var(--space-3) 0;
 }
 
-.side-nav-compact .side-nav-item {
+.side-nav-compact .side-nav-item,
+.side-nav-collapsed .side-nav-item {
   justify-content: center;
   min-height: 52px;
   padding: 0;
 }
 
-.side-nav-compact .side-nav-badge {
+.side-nav-compact .side-nav-badge,
+.side-nav-collapsed .side-nav-badge {
   position: absolute;
   top: 4px;
   right: 4px;
@@ -344,54 +402,86 @@
   line-height: 18px;
 }
 
-.side-nav-compact .side-nav-footer {
+.side-nav-compact .side-nav-footer,
+.side-nav-collapsed .side-nav-footer {
   padding: var(--space-3) 10px;
 }
 
-.side-nav-compact .side-nav-back {
+.side-nav-compact .side-nav-back,
+.side-nav-collapsed .side-nav-back {
   justify-content: center;
   padding: 0;
 }
 
-.side-nav-compact .side-nav-user {
+.side-nav-compact .side-nav-user,
+.side-nav-collapsed .side-nav-user {
   justify-content: center;
   padding: var(--space-3) 0;
 }
 
-/* ... and automatically on tablets */
+/* Collapsing on a wide screen gives the page the room back */
+.shell:has(.side-nav-collapsed) .shell-main {
+  margin-left: var(--sidenav-compact-width);
+}
+
+/* ... and automatically on tablets, unless expanded with the toggle */
 @media (max-width: 1024px) {
   .side-nav {
     width: var(--sidenav-compact-width);
   }
 
-  .side-nav .side-nav-header {
+  /* Expanded on a tablet: full width, floating over the page */
+  .side-nav.side-nav-expanded {
+    width: var(--sidenav-width);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+  }
+
+  .side-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: rgba(0, 0, 0, 0.35);
+  }
+
+  .side-nav:not(.side-nav-expanded) .side-nav-header {
+    flex-direction: column;
     justify-content: center;
+    gap: var(--space-3);
     padding: 18px 0 var(--space-5);
   }
 
-  .side-nav .side-nav-lockup,
-  .side-nav .side-nav-item-label,
-  .side-nav .side-nav-section-label,
-  .side-nav .side-nav-back-label,
-  .side-nav .side-nav-user-text {
+  .side-nav:not(.side-nav-expanded) .side-nav-toggle {
+    margin-left: 0;
+  }
+
+  .side-nav:not(.side-nav-expanded) .side-nav-lockup,
+  .side-nav:not(.side-nav-expanded) .side-nav-item-label,
+  .side-nav:not(.side-nav-expanded) .side-nav-section-label,
+  .side-nav:not(.side-nav-expanded) .side-nav-back-label,
+  .side-nav:not(.side-nav-expanded) .side-nav-user-text {
     display: none;
   }
 
-  .side-nav .side-nav-items {
+  .side-nav:not(.side-nav-expanded) .side-nav-toggle i {
+    transform: rotate(180deg);
+  }
+
+  .side-nav:not(.side-nav-expanded) .side-nav-items {
     padding: 0 10px;
   }
 
-  .side-nav .side-nav-section {
+  .side-nav:not(.side-nav-expanded) .side-nav-section {
     padding: var(--space-3) 0;
   }
 
-  .side-nav .side-nav-item {
+  .side-nav:not(.side-nav-expanded) .side-nav-item {
     justify-content: center;
     min-height: 52px;
     padding: 0;
   }
 
-  .side-nav .side-nav-badge {
+  .side-nav:not(.side-nav-expanded) .side-nav-badge {
     position: absolute;
     top: 4px;
     right: 4px;
@@ -402,18 +492,24 @@
     line-height: 18px;
   }
 
-  .side-nav .side-nav-footer {
+  .side-nav:not(.side-nav-expanded) .side-nav-footer {
     padding: var(--space-3) 10px;
   }
 
-  .side-nav .side-nav-back {
+  .side-nav:not(.side-nav-expanded) .side-nav-back {
     justify-content: center;
     padding: 0;
   }
 
-  .side-nav .side-nav-user {
+  .side-nav:not(.side-nav-expanded) .side-nav-user {
     justify-content: center;
     padding: var(--space-3) 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .side-nav-backdrop {
+    display: none;
   }
 }
 

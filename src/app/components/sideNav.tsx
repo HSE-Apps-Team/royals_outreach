@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -163,7 +163,10 @@ type SideNavProps = {
   back?: SideNavBack;
   /** Extra content above the user block, e.g. a user menu popover. */
   footer?: React.ReactNode;
-  /** Always render the icon-only rail (it also collapses on its own under 1024px). */
+  /**
+   * Start as the icon-only rail (it also starts collapsed under 1024px).
+   * The toggle button in the header expands or collapses it either way.
+   */
   compact?: boolean;
   logoHref?: string;
   className?: string;
@@ -182,6 +185,26 @@ export default function SideNav({
   className = "",
 }: SideNavProps) {
   const pathname = usePathname();
+  // null follows the default (compact prop / screen width); otherwise the user's choice
+  const [mode, setMode] = useState<"expanded" | "collapsed" | null>(null);
+
+  const isTablet = () => window.matchMedia("(max-width: 1024px)").matches;
+  const isCollapsed = () => (mode === null ? compact || isTablet() : mode === "collapsed");
+  const toggle = () => setMode(isCollapsed() ? "expanded" : "collapsed");
+
+  // On tablets the expanded nav floats over the page, so close it after a pick
+  const closeOverlay = () => {
+    if (mode === "expanded" && isTablet()) setMode(null);
+  };
+
+  const stateClass =
+    mode === "expanded"
+      ? "side-nav-expanded"
+      : mode === "collapsed"
+        ? "side-nav-collapsed"
+        : compact
+          ? "side-nav-compact"
+          : "";
 
   const userContent = user && (
     <>
@@ -194,73 +217,84 @@ export default function SideNav({
   );
 
   return (
-    <nav
-      className={`side-nav ${compact ? "side-nav-compact" : ""} ${className}`.trim()}
-      aria-label="Main"
-    >
-      {/* Header */}
-      <div className="side-nav-header">
-        <NavLockup logoHref={logoHref} />
-      </div>
-
-      {/* Body */}
-      <div className="side-nav-items">
-        {items.map((item, i) => {
-          if (item.section) {
-            return (
-              <div key={`section-${i}`} className="side-nav-section">
-                <span className="side-nav-section-label">{item.section}</span>
-              </div>
-            );
-          }
-
-          const active = isNavItemActive(item, value, pathname);
-
-          return (
-            <NavItemLink
-              key={item.value ?? item.href ?? i}
-              item={item}
-              title={item.label}
-              onSelect={onChange}
-              className={`side-nav-item ${active ? "side-nav-item-active" : ""}`.trim()}
-            >
-              {item.icon && <i className={`bi bi-${item.icon} side-nav-item-icon`} />}
-              <span className="side-nav-item-label">{item.label}</span>
-              {item.badge != null && <span className="side-nav-badge">{item.badge}</span>}
-            </NavItemLink>
-          );
-        })}
-      </div>
-
-      {/* Footer */}
-      {(back || footer || user) && (
-        <div className="side-nav-footer">
-          {back && (
-            <Link href={back.href} className="side-nav-back" title={back.label}>
-              <i className="bi bi-arrow-left" />
-              <span className="side-nav-back-label">{back.label}</span>
-            </Link>
-          )}
-
-          {footer}
-
-          {user &&
-            (onUserClick ? (
-              <button
-                type="button"
-                className="side-nav-user side-nav-user-button"
-                title={fullName(user)}
-                onClick={onUserClick}
-              >
-                {userContent}
-              </button>
-            ) : (
-              <div className="side-nav-user" title={fullName(user)}>
-                {userContent}
-              </div>
-            ))}
-        </div>
+    <>
+      {mode === "expanded" && (
+        <div className="side-nav-backdrop" onClick={() => setMode(null)} aria-hidden />
       )}
-    </nav>
+      <nav className={`side-nav ${stateClass} ${className}`.replace(/\s+/g, " ").trim()} aria-label="Main">
+        {/* Header */}
+        <div className="side-nav-header">
+          <NavLockup logoHref={logoHref} />
+          <button
+            type="button"
+            className="side-nav-toggle"
+            onClick={toggle}
+            aria-label="Expand or collapse menu"
+            title="Expand or collapse menu"
+          >
+            <i className="bi bi-chevron-double-left" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="side-nav-items" onClick={closeOverlay}>
+          {items.map((item, i) => {
+            if (item.section) {
+              return (
+                <div key={`section-${i}`} className="side-nav-section">
+                  <span className="side-nav-section-label">{item.section}</span>
+                </div>
+              );
+            }
+
+            const active = isNavItemActive(item, value, pathname);
+
+            return (
+              <NavItemLink
+                key={item.value ?? item.href ?? i}
+                item={item}
+                title={item.label}
+                onSelect={onChange}
+                className={`side-nav-item ${active ? "side-nav-item-active" : ""}`.trim()}
+              >
+                {item.icon && <i className={`bi bi-${item.icon} side-nav-item-icon`} />}
+                <span className="side-nav-item-label">{item.label}</span>
+                {item.badge != null && <span className="side-nav-badge">{item.badge}</span>}
+              </NavItemLink>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        {(back || footer || user) && (
+          <div className="side-nav-footer">
+            {back && (
+              <Link href={back.href} className="side-nav-back" title={back.label} onClick={closeOverlay}>
+                <i className="bi bi-arrow-left" />
+                <span className="side-nav-back-label">{back.label}</span>
+              </Link>
+            )}
+
+            {footer}
+
+            {user &&
+              (onUserClick ? (
+                <button
+                  type="button"
+                  className="side-nav-user side-nav-user-button"
+                  title={fullName(user)}
+                  onClick={onUserClick}
+                >
+                  {userContent}
+                </button>
+              ) : (
+                <div className="side-nav-user" title={fullName(user)}>
+                  {userContent}
+                </div>
+              ))}
+          </div>
+        )}
+      </nav>
+    </>
   );
 }

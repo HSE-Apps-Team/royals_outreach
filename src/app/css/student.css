@@ -29,7 +29,8 @@
 }
 
 /* Compact rail (forced or tablet width): pop out to the right of the rail */
-.side-nav-compact .user-menu {
+.side-nav-compact .user-menu,
+.side-nav-collapsed .user-menu {
   left: calc(100% + var(--space-2));
   right: auto;
   bottom: var(--space-3);
@@ -37,7 +38,7 @@
 }
 
 @media (max-width: 1024px) {
-  .side-nav .user-menu {
+  .side-nav:not(.side-nav-expanded) .user-menu {
     left: calc(100% + var(--space-2));
     right: auto;
     bottom: var(--space-3);
