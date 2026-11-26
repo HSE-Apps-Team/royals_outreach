@@ -152,9 +152,6 @@ export default function StudentHomeUI({ student, clubs, requests, signUps, event
         >
           Required Club Events
         </SectionHead>
-        <p className="student-home-events-note">
-          Your clubs require you to come to these. Bring your student ID so an exec can scan you in at the door.
-        </p>
         {nextEvents.length === 0 ? (
           <EmptyState size="sm" message="You have no required club events coming up." />
         ) : (

@@ -462,12 +462,6 @@
 }
 
 /* Required Club Events: the line under the section head */
-.student-home-events-note {
-  margin: 0 0 6px;
-  font-size: 13.5px;
-  color: var(--mutedText);
-}
-
 /* My Events */
 .my-events {
   display: flex;
