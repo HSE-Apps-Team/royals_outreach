@@ -641,35 +641,6 @@
   font-weight: var(--fw-semibold);
 }
 
-.attendance-scanner-frame {
-  position: absolute;
-  inset: 20% 18%;
-  border: 3px solid var(--white);
-  border-radius: 10px;
-  opacity: 0.85;
-  pointer-events: none;
-}
-
-.attendance-scanner-line {
-  position: absolute;
-  left: 18%;
-  right: 18%;
-  height: 3px;
-  background: var(--primaryRed);
-  animation: attendance-scan-line 2.4s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes attendance-scan-line {
-  0%,
-  100% {
-    top: 22%;
-  }
-  50% {
-    top: 74%;
-  }
-}
-
 .attendance-scanner-hint {
   position: absolute;
   left: 0;
@@ -719,11 +690,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .attendance-scanner-line {
-    animation: none;
-    top: 48%;
-  }
-
   .attendance-scanner-flash {
     animation-duration: 0.01s;
   }

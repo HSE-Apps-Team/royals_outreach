@@ -423,8 +423,6 @@ export default function AttendanceScanner({
               />
               {isScanning ? (
                 <>
-                  <div className="attendance-scanner-frame" aria-hidden="true" />
-                  <div className="attendance-scanner-line" aria-hidden="true" />
                   <div className="attendance-scanner-hint">
                     {popupOpen ? "Paused while you answer the popup" : "Scanning · Hold the barcode anywhere in view"}
                   </div>
