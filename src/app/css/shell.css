@@ -582,6 +582,250 @@
   }
 }
 
+/* Blue variant (homepage): HSE blue bar, uppercase links, red and white stripe under it */
+.app-header-blue {
+  background: var(--primaryBlue);
+  border-bottom: none;
+}
+
+@media (max-width: 768px) {
+  .app-header-blue {
+    display: none;
+  }
+}
+
+.app-header-blue .app-header-inner {
+  flex-wrap: nowrap;
+  gap: 22px;
+  min-height: 84px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.app-header-brand,
+.app-header-brand:hover {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--white);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.app-header-brand-logo {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--white);
+}
+
+.app-header-blue .app-header-links {
+  gap: 26px;
+}
+
+@media (max-width: 1024px) {
+  .app-header-blue .app-header-links {
+    gap: var(--space-4);
+  }
+}
+
+.app-header-blue .app-header-link {
+  color: var(--white);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1024px) {
+  .app-header-blue .app-header-link {
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+}
+
+.app-header-blue .app-header-link:hover {
+  color: var(--secondarySilver);
+}
+
+.app-header-blue .login-button {
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border-color: var(--white);
+  background: var(--white);
+  color: var(--primaryBlue);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-header-blue .login-button:hover {
+  background: transparent;
+  color: var(--white);
+}
+
+.app-header-blue a:focus-visible,
+.app-header-mobile a:focus-visible,
+.app-header-mobile button:focus-visible {
+  outline: 3px solid var(--white);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+/* Phones: MobileNav in HSE blue, Sign In at the bottom of the drawer */
+.app-header-mobile .mobile-nav-bar {
+  background: var(--primaryBlue);
+}
+
+.app-header-mobile .login-button {
+  width: 100%;
+  border-color: var(--white);
+  background: var(--white);
+  color: var(--primaryBlue);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.app-header-mobile .login-button:hover {
+  background: transparent;
+  color: var(--white);
+}
+
+.app-header-stripe {
+  height: 12px;
+  background: linear-gradient(
+    var(--primaryRed) 0 4px,
+    var(--white) 4px 8px,
+    var(--primaryRed) 8px 12px
+  );
+}
+
+@media (max-width: 768px) {
+  .app-header-stripe {
+    height: 9px;
+    background: linear-gradient(
+      var(--primaryRed) 0 3px,
+      var(--white) 3px 6px,
+      var(--primaryRed) 6px 9px
+    );
+  }
+}
+
+/* ================= HSE school footer (schoolFooter) ================= */
+
+.school-footer {
+  background: var(--navy);
+  border-top: 6px solid var(--primaryRed);
+  color: var(--white);
+}
+
+.school-footer-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) 44px;
+}
+
+@media (max-width: 900px) {
+  .school-footer-main {
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    padding: var(--space-6) var(--space-5);
+  }
+}
+
+.school-footer-lion {
+  flex: none;
+  width: auto;
+  height: 112px;
+}
+
+@media (max-width: 600px) {
+  .school-footer-lion {
+    height: 72px;
+  }
+}
+
+.school-footer-school {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.school-footer-name {
+  font: var(--fw-bold) clamp(1.3rem, 2.4vw, 28px) / 1.15 var(--font-serif);
+  letter-spacing: 0.02em;
+}
+
+.school-footer-motto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--secondarySilver);
+}
+
+.school-footer-motto-rule {
+  width: 36px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--primaryRed);
+}
+
+.school-footer-divider {
+  width: 2px;
+  align-self: stretch;
+  background: var(--navDivider);
+}
+
+@media (max-width: 900px) {
+  .school-footer-divider {
+    display: none;
+  }
+}
+
+.school-footer-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: var(--fw-semibold);
+  font-style: normal;
+}
+
+@media (max-width: 900px) {
+  .school-footer-contact {
+    flex-basis: 100%;
+  }
+}
+
+.school-footer-contact span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.school-footer-contact i {
+  width: 16px;
+  color: var(--secondarySilver);
+}
+
+.school-footer-bottom {
+  background: var(--navyDeep);
+  color: var(--navyBodyText);
+  font-size: 13.5px;
+}
+
 /* ================= tabs ================= */
 
 .tabs {

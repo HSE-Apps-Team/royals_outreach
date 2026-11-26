@@ -63,6 +63,7 @@ import CreateClubDialog from "../components/CreateClubDialog";
 import AssignStaffDialog from "../components/AssignStaffDialog";
 import UserMenu from "../components/userMenu";
 import SiteFooter from "../components/siteFooter";
+import SchoolFooter from "../components/schoolFooter";
 
 // Club Executive Panel
 import ClubPanelNav from "../components/clubPanelNav";
@@ -693,6 +694,18 @@ export const PREVIEW_ENTRIES: PreviewEntry[] = [
           ],
           activeHref: "#how-it-works",
           logoHref: "/",
+        },
+      },
+      {
+        label: "Homepage (Blue)",
+        props: {
+          variant: "blue",
+          links: [
+            { label: "Impact", href: "#impact" },
+            { label: "Features", href: "#features" },
+            { label: "How It Works", href: "#how-it-works" },
+            { label: "Made At HSE", href: "#made-at-hse" },
+          ],
         },
       },
       { label: "Signed In", props: { links: [], action: <LoginButton signedIn onLogout={cb("onLogout")} /> } },
@@ -1519,11 +1532,32 @@ export const PREVIEW_ENTRIES: PreviewEntry[] = [
     name: "SiteFooter",
     file: "siteFooter.tsx",
     group: "Shared Composites",
-    pages: ["Public · Homepage (with Sign In link)", "Public · Login (no link)"],
+    pages: ["Public · Login (no link)"],
     component: SiteFooter,
     examples: [
       { label: "Homepage", props: { text: "Royals Outreach · Hamilton Southeastern High School · Fishers, IN", linkLabel: "Sign In", linkHref: "/login" } },
       { label: "Login", props: { text: "Royals Outreach · Hamilton Southeastern High School · Fishers, IN" } },
+    ],
+  }),
+
+  entry({
+    name: "SchoolFooter",
+    file: "schoolFooter.tsx",
+    group: "Shared Composites",
+    pages: ["Coordinator (fax line)", "Public · Homepage (email line and credits strip)"],
+    component: SchoolFooter,
+    examples: [
+      { label: "Coordinator", props: {} },
+      {
+        label: "Homepage",
+        props: {
+          lines: [
+            { icon: "geo-alt-fill", text: "12499 Olio Road, Fishers, IN 46037" },
+            { icon: "telephone-fill", text: "Office (317) 594-4190" },
+            { icon: "envelope-fill", text: "Questions? [email goes here]" },
+          ],
+        },
+      },
     ],
   }),
 

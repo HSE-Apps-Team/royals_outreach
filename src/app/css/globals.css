@@ -36,6 +36,11 @@
   --redTintSolid: #fdecef;
   --redText: #a50c25;
   --denySurface: #fff7f8;
+  --slateText: #3d4a60;
+  --navyDeep: #071a36;
+  --navyBodyText: #dce6f7;
+  --redOnNavy: #ff8095;
+  --logoShadow: rgba(11, 38, 79, 0.18);
 
   /* Hour request status */
   --statusPending: var(--warningAmber);
