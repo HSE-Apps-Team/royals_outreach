@@ -32,3 +32,6 @@ export function canSee(section: ClubSection, role: ClubRole): boolean {
   if (role === "Staff" || role === "Admin") return true;
   return STUDENT_SECTIONS.includes(section);
 }
+
+// TODO: comes from the session once RBAC is added
+export const CURRENT_CLUB_ROLE: ClubRole = "Staff";

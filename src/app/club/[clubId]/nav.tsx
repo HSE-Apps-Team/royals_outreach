@@ -3,10 +3,9 @@
 import { useParams, usePathname, useRouter } from "next/navigation";
 import ClubPanelNav, { CLUB_PANEL_BACK_LABELS, CLUB_PANEL_USERS, buildClubPanelNavItems } from "@/app/components/clubPanelNav";
 import MobileNav from "@/app/components/MobileNav";
-import type { ClubRole, ClubSection } from "@/lib/canSee";
+import { CURRENT_CLUB_ROLE as ROLE, type ClubSection } from "@/lib/canSee";
 
-// TODO: role, user and back link come from the session once RBAC is added
-const ROLE: ClubRole = "Staff";
+// TODO: user and back link come from the session once RBAC is added
 const BACK_HREF = "/staff";
 
 type ClubPanelNavUIProps = {
@@ -23,7 +22,8 @@ export default function ClubPanelNavUI({ pendingRequests, eventsToday }: ClubPan
 
   // /club/12/config -> "config"
   const section = (pathname.split("/")[3] || "overview") as ClubSection;
-  const goTo = (value: string) => router.push(`/club/${clubId}/${value}`);
+  // Overview is the panel's own page, /club/12
+  const goTo = (value: string) => router.push(value === "overview" ? `/club/${clubId}` : `/club/${clubId}/${value}`);
   const badges = {
     ...(pendingRequests > 0 ? { requests: pendingRequests } : {}),
     ...(eventsToday > 0 ? { events: eventsToday } : {}),
