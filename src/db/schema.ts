@@ -1,4 +1,4 @@
-import { pgTable, integer, numeric, text, boolean, date, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, integer, numeric, text, boolean, date, time, timestamp, uniqueIndex, check, foreignKey } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
 // Hours allow quarter, half and tenth hours (0.25, 0.5, 0.6), so they are stored as
@@ -222,6 +222,75 @@ export const registrations = pgTable("registrations", {
 });
 
 // ============================================================
+//  EVENTS
+// ============================================================
+
+// Required club meetings. An event is assigned to member groups, and the expected roster is
+// worked out when it is read (everyone in those groups), so a student who changes groups after
+// the event is created still shows up in the right events. Only marked students get a row in
+// club_event_attendance. Events never add service hours.
+
+// ---------------- club_events ----------------
+export const clubEvents = pgTable("club_events", {
+  eventId:     integer("event_id").primaryKey().generatedAlwaysAsIdentity(),
+  clubId:      integer("club_id").notNull().references(() => clubData.clubId),
+  name:        text("name").notNull(),
+  description: text("description"),
+  date:        date("date").notNull(),
+});
+
+// ---------------- club_event_times ----------------
+// One event can be held more than once on its date (before and after school). The times share
+// one attendance record, so a member only needs to come to one of them. Every event has at least one.
+export const clubEventTimes = pgTable("club_event_times", {
+  timeId:    integer("time_id").primaryKey().generatedAlwaysAsIdentity(),
+  eventId:   integer("event_id").notNull().references(() => clubEvents.eventId, { onDelete: "cascade" }),
+  label:     text("label"),
+  startTime: time("start_time").notNull(),
+  endTime:   time("end_time").notNull(),
+  location:  text("location").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (t) => ({
+  endAfterStart: check("club_event_times_end_after_start", sql`${t.endTime} > ${t.startTime}`),
+}));
+
+// ---------------- club_event_groups ----------------
+// Deleting a member group removes it from its events; the events and their attendance stay.
+export const clubEventGroups = pgTable("club_event_groups", {
+  num:     integer("num").primaryKey().generatedAlwaysAsIdentity(),
+  eventId: integer("event_id").notNull().references(() => clubEvents.eventId, { onDelete: "cascade" }),
+  groupId: integer("group_id").notNull().references(() => clubMemberGroups.groupId, { onDelete: "cascade" }),
+}, (t) => ({
+  eventGroupUnique: uniqueIndex("club_event_groups_event_group_unique").on(t.eventId, t.groupId),
+}));
+
+// ---------------- club_event_attendance ----------------
+// One row per marked student, so marking is an upsert on (event_id, student_id). A student with
+// no row is Not Marked. time_id is the time they came to (Present and Late only).
+export const clubEventAttendance = pgTable("club_event_attendance", {
+  num:       integer("num").primaryKey().generatedAlwaysAsIdentity(),
+  eventId:   integer("event_id").notNull().references(() => clubEvents.eventId, { onDelete: "cascade" }),
+  studentId: integer("student_id").notNull(),
+  status:    text("status").notNull(),
+  timeId:    integer("time_id").references(() => clubEventTimes.timeId, { onDelete: "set null" }),
+  method:    text("method").notNull(),
+  // A club member outside the event's groups whom an exec chose to add.
+  isWalkIn:  boolean("is_walk_in").notNull().default(false),
+  markedAt:  timestamp("marked_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  // Named by hand: the generated name is 64 characters, past Postgres's 63, so drizzle-kit would
+  // see the shortened name as a different constraint on every push.
+  studentFk: foreignKey({
+    name:           "club_event_attendance_student_id_fk",
+    columns:        [t.studentId],
+    foreignColumns: [studentUserData.studentId],
+  }),
+  eventStudentUnique: uniqueIndex("club_event_attendance_event_student_unique").on(t.eventId, t.studentId),
+  statusCheck: check("club_event_attendance_status_check", sql`${t.status} in ('Present', 'Late', 'Excused', 'Absent')`),
+  methodCheck: check("club_event_attendance_method_check", sql`${t.method} in ('Scanned', 'Search', 'Manual')`),
+}));
+
+// ============================================================
 //  RELATIONS
 // ============================================================
 
@@ -232,6 +301,7 @@ export const studentRelations = relations(studentUserData, ({ many }) => ({
   loggedHours:     many(loggedHours),
   additionalHours: many(additionalHours),
   registrations:   many(registrations),
+  eventAttendance: many(clubEventAttendance),
 }));
 
 export const staffRelations = relations(staffUserData, ({ many }) => ({
@@ -246,6 +316,7 @@ export const clubRelations = relations(clubData, ({ many }) => ({
   roles:           many(roleData),
   loggedHours:     many(loggedHours),
   additionalHours: many(additionalHours),
+  events:          many(clubEvents),
 }));
 
 export const categoryRelations = relations(categoryData, ({ one, many }) => ({
@@ -288,6 +359,7 @@ export const clubMemberGroupRelations = relations(clubMemberGroups, ({ one, many
   }),
   categories: many(categoryClubGroupAssignment),
   students:   many(studentClubGroupAssignment),
+  events:     many(clubEventGroups),
 }));
 
 export const categoryClubGroupAssignmentRelations = relations(categoryClubGroupAssignment, ({ one }) => ({
@@ -397,5 +469,49 @@ export const registrationRelations = relations(registrations, ({ one }) => ({
   student: one(studentUserData, {
     fields:     [registrations.studentId],
     references: [studentUserData.studentId],
+  }),
+}));
+
+export const clubEventRelations = relations(clubEvents, ({ one, many }) => ({
+  club:       one(clubData, {
+    fields:     [clubEvents.clubId],
+    references: [clubData.clubId],
+  }),
+  times:      many(clubEventTimes),
+  groups:     many(clubEventGroups),
+  attendance: many(clubEventAttendance),
+}));
+
+export const clubEventTimeRelations = relations(clubEventTimes, ({ one, many }) => ({
+  event:      one(clubEvents, {
+    fields:     [clubEventTimes.eventId],
+    references: [clubEvents.eventId],
+  }),
+  attendance: many(clubEventAttendance),
+}));
+
+export const clubEventGroupRelations = relations(clubEventGroups, ({ one }) => ({
+  event: one(clubEvents, {
+    fields:     [clubEventGroups.eventId],
+    references: [clubEvents.eventId],
+  }),
+  group: one(clubMemberGroups, {
+    fields:     [clubEventGroups.groupId],
+    references: [clubMemberGroups.groupId],
+  }),
+}));
+
+export const clubEventAttendanceRelations = relations(clubEventAttendance, ({ one }) => ({
+  event:   one(clubEvents, {
+    fields:     [clubEventAttendance.eventId],
+    references: [clubEvents.eventId],
+  }),
+  student: one(studentUserData, {
+    fields:     [clubEventAttendance.studentId],
+    references: [studentUserData.studentId],
+  }),
+  time:    one(clubEventTimes, {
+    fields:     [clubEventAttendance.timeId],
+    references: [clubEventTimes.timeId],
   }),
 }));

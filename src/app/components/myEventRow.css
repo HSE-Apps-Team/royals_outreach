@@ -1,0 +1,107 @@
+/* My event row: a required club event on the student homepage and My Events */
+
+.my-event-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 14px 4px;
+  border-bottom: 2px solid var(--blueDivider);
+  font-family: var(--font-sans);
+  color: var(--inkText);
+}
+
+@media (max-width: 600px) {
+  .my-event-row {
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
+  }
+}
+
+.my-event-row-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.my-event-row-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.my-event-row-name {
+  font-weight: var(--fw-bold);
+  font-size: 1.15rem;
+  line-height: 1.3;
+  color: var(--primaryBlue);
+}
+
+.my-event-row-today {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--primaryRed);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.my-event-row-club {
+  font-size: 13.5px;
+  font-weight: var(--fw-semibold);
+}
+
+.my-event-row-time {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.my-event-row-time .bi {
+  color: var(--mutedText);
+}
+
+.my-event-row-time-label {
+  font-weight: var(--fw-bold);
+}
+
+.my-event-row-either {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 12.5px;
+  font-weight: var(--fw-semibold);
+  color: var(--amberText);
+}
+
+.my-event-row-detail {
+  font-size: 13px;
+  color: var(--mutedText);
+}
+
+.my-event-row-group {
+  max-width: 150px;
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: var(--fw-semibold);
+  color: var(--mutedText);
+}
+
+/* Under 600px the group and badge sit under the text, lined up with it */
+@media (max-width: 600px) {
+  .my-event-row-group,
+  .my-event-row-badge {
+    grid-column: 2;
+    justify-self: start;
+    max-width: none;
+    text-align: left;
+  }
+}

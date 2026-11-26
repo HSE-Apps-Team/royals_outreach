@@ -1,0 +1,339 @@
+/* Club Executive Panel: Events list and the Create / Edit Event dialog */
+
+.events-page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  font-family: var(--font-sans);
+}
+
+/* Event list: borderless rows with silver dividers */
+
+.events-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.events-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 190px auto;
+  grid-template-areas: "date main attend actions";
+  gap: 18px;
+  align-items: center;
+  padding: var(--space-4) var(--space-1);
+  border-bottom: var(--border-cell) solid var(--secondarySilver);
+}
+
+@media (max-width: 1024px) {
+  .events-row {
+    grid-template-columns: 64px minmax(0, 1fr) 160px auto;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 900px) {
+  .events-row {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "date main actions"
+      "date attend attend";
+    row-gap: var(--space-3);
+  }
+}
+
+@media (max-width: 768px) {
+  .events-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "date main"
+      "attend attend"
+      "actions actions";
+    align-items: start;
+  }
+}
+
+.events-row > .event-date-block {
+  grid-area: date;
+}
+
+.events-row-main {
+  grid-area: main;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.events-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.events-row-name {
+  font-size: 1.1rem;
+  font-weight: var(--fw-bold);
+  color: var(--primaryBlue);
+}
+
+.events-row-time {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--inkText);
+}
+
+.events-row-time .bi {
+  color: var(--mutedText);
+}
+
+.events-row-note {
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--mutedText);
+}
+
+.events-row-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* Chips: group names and the Today tag */
+
+.events-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--blueHover);
+  color: var(--primaryBlue);
+  font-size: 12px;
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.events-chip-today {
+  background: var(--primaryRed);
+  color: var(--white);
+}
+
+/* Attendance summary and bar */
+
+.events-row-attendance {
+  grid-area: attend;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.events-row-count {
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  color: var(--inkText);
+}
+
+.events-row-sub {
+  font-size: 12px;
+  color: var(--mutedText);
+}
+
+.events-bar {
+  display: flex;
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--rowDivider);
+}
+
+.events-bar-present {
+  background: var(--primaryBlue);
+}
+
+.events-bar-late {
+  background: var(--warningAmber);
+}
+
+.events-row-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 768px) {
+  .events-row-actions .events-row-open {
+    flex: 1;
+  }
+
+  .events-row-actions .icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Create / Edit Event dialog */
+
+/* Wider and taller than the default shell; the red frame fills down to the footer */
+.event-dialog-shell {
+  max-height: 94vh;
+  min-height: min(720px, 94vh);
+}
+
+.event-dialog-shell .modal-shell-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.event-dialog-shell .modal-shell-frame {
+  flex: 1;
+}
+
+.event-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.event-dialog-section {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.event-dialog-heading {
+  float: none;
+  margin: 0 0 2px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: var(--fw-bold);
+  color: var(--primaryBlue);
+}
+
+.event-dialog-help {
+  margin: 0 0 var(--space-2);
+  font-size: 12.5px;
+  color: var(--mutedText);
+}
+
+.event-dialog-times {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Name and date side by side */
+.event-dialog-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 600px) {
+  .event-dialog-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Each time is a card: header, then Label and Location over Start and End */
+.event-dialog-time {
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-cell) solid var(--secondarySilver);
+  border-radius: var(--radius-button);
+}
+
+.event-dialog-time-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  margin-bottom: var(--space-2);
+}
+
+.event-dialog-time-title {
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-section);
+  color: var(--primaryBlue);
+}
+
+.event-dialog-time-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 480px) {
+  .event-dialog-time-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.event-dialog-add {
+  margin-top: var(--space-2);
+  padding-left: 0;
+}
+
+.event-dialog-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .event-dialog-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .event-dialog-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.event-dialog-expected {
+  margin-top: var(--space-2);
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  color: var(--inkText);
+}
+
+.event-dialog-note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--inkText);
+}
+
+.event-dialog-note a {
+  font-weight: var(--fw-bold);
+  color: var(--primaryBlue);
+}
+
+.event-dialog-note a:hover {
+  color: var(--primaryRed);
+}
+
+.event-dialog-note a:focus-visible {
+  outline: 3px solid var(--primaryRed);
+  outline-offset: 2px;
+}
+
+.event-dialog-delete {
+  margin-right: auto;
+}
+
+@media (max-width: 480px) {
+  .event-dialog-delete {
+    margin-right: 0;
+  }
+}

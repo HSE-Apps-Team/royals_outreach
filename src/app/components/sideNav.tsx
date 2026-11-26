@@ -39,8 +39,9 @@ export const STUDENT_NAV_ITEMS: SideNavItem[] = [
   { value: "log", label: "Log Hours", icon: "plus-circle" },
   { value: "hours", label: "Goal Progress", shortLabel: "Goals", icon: "bullseye" },
   { value: "req", label: "My Requests", shortLabel: "Requests", icon: "inbox", badge: 2 },
+  { value: "events", label: "My Events", shortLabel: "Events", icon: "calendar-check" },
   { section: "Clubs" },
-  { value: "opps", label: "Opportunities", shortLabel: "Events", icon: "calendar-event" },
+  { value: "opps", label: "Opportunities", shortLabel: "Sign Ups", icon: "calendar-event" },
   { section: "Account" },
   { value: "export", label: "Export Portfolio", shortLabel: "Export", icon: "file-earmark-arrow-down" },
 ];

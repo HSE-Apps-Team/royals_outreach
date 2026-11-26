@@ -12,9 +12,11 @@ const BACK_HREF = "/staff";
 type ClubPanelNavUIProps = {
   /** Shown on Hour Requests; no badge at zero. */
   pendingRequests: number;
+  /** Shown on Events: events happening today; no badge at zero. */
+  eventsToday: number;
 };
 
-export default function ClubPanelNavUI({ pendingRequests }: ClubPanelNavUIProps) {
+export default function ClubPanelNavUI({ pendingRequests, eventsToday }: ClubPanelNavUIProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { clubId } = useParams<{ clubId: string }>();
@@ -22,7 +24,10 @@ export default function ClubPanelNavUI({ pendingRequests }: ClubPanelNavUIProps)
   // /club/12/config -> "config"
   const section = (pathname.split("/")[3] || "overview") as ClubSection;
   const goTo = (value: string) => router.push(`/club/${clubId}/${value}`);
-  const badges = pendingRequests > 0 ? { requests: pendingRequests } : {};
+  const badges = {
+    ...(pendingRequests > 0 ? { requests: pendingRequests } : {}),
+    ...(eventsToday > 0 ? { events: eventsToday } : {}),
+  };
 
   return (
     <>

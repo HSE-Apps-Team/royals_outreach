@@ -4,6 +4,8 @@ import { db } from "@/db";
 import {
   additionalHours,
   categoryData,
+  clubEventAttendance,
+  clubEvents,
   clubMemberGroups,
   loggedHours,
   registrations,
@@ -346,7 +348,7 @@ export const assignMembersToGroup = async (clubId: number, studentIds: number[],
 //--------------------------------------------------------------------------------------//
 
 // Removes the membership and everything the students have in this club: group, roles,
-// logged and additional hours, and opportunity sign ups. The student record stays.
+// logged and additional hours, opportunity sign ups and event attendance. The student record stays.
 export const removeMembersAndHistory = async (clubId: number, studentIds: number[]) => {
   const ids = toIds(studentIds);
   if (ids.length === 0) return { success: true, count: 0 };
@@ -368,6 +370,17 @@ export const removeMembersAndHistory = async (clubId: number, studentIds: number
       .where(and(inArray(registrations.studentId, ids), inArray(registrations.signUpId, clubSignUpIds(clubId)))),
     db.delete(loggedHours).where(and(eq(loggedHours.clubId, clubId), inArray(loggedHours.studentId, ids))),
     db.delete(additionalHours).where(and(eq(additionalHours.clubId, clubId), inArray(additionalHours.studentId, ids))),
+    db
+      .delete(clubEventAttendance)
+      .where(
+        and(
+          inArray(clubEventAttendance.studentId, ids),
+          inArray(
+            clubEventAttendance.eventId,
+            db.select({ eventId: clubEvents.eventId }).from(clubEvents).where(eq(clubEvents.clubId, clubId)),
+          ),
+        ),
+      ),
     db
       .delete(studentClubMembership)
       .where(and(eq(studentClubMembership.clubId, clubId), inArray(studentClubMembership.studentId, ids))),

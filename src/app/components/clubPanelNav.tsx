@@ -21,6 +21,7 @@ export const CLUB_PANEL_SECTIONS: ClubPanelSectionDef[] = [
   { value: "requests", label: "Hour Requests", icon: "inbox", group: "Hours" },
   { value: "progress", label: "Hours Progress", icon: "bar-chart", group: "Hours" },
   { value: "lookup", label: "Look Up Students", icon: "search", group: "Hours" },
+  { value: "events", label: "Events", icon: "calendar-check", group: "Events" },
   { value: "opportunities", label: "Opportunities", icon: "calendar-event", group: "Events" },
   { value: "export", label: "Export", icon: "download", group: "Data" },
   { value: "images", label: "Image Folder", icon: "images", group: "Data" },

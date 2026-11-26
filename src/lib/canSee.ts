@@ -13,6 +13,7 @@ export type ClubSection =
   | "requests"
   | "progress"
   | "lookup"
+  | "events"
   | "opportunities"
   | "export"
   | "images"
@@ -22,6 +23,7 @@ const STUDENT_SECTIONS: ClubSection[] = [
   "overview",
   "requests",
   "progress",
+  "events",
   "opportunities",
   "images",
 ];

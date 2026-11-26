@@ -12,6 +12,11 @@ export function schoolDateOf(moment: Date): string {
   return moment.toLocaleDateString("en-CA", { timeZone: SCHOOL_TIME_ZONE });
 }
 
+// A moment's wall-clock time at the school as 24-hour "HH:MM", e.g. "14:47" (formatTime shows it).
+export function schoolClockOf(moment: Date): string {
+  return moment.toLocaleTimeString("en-GB", { timeZone: SCHOOL_TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
 // Whole days from one ISO date to a later one, e.g. ("2026-10-20", "2026-10-27") is 7.
 export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 86_400_000);

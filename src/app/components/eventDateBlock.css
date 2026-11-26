@@ -1,0 +1,56 @@
+/* Event date block: month, day and weekday tile at the start of an event row */
+
+.event-date-block {
+  width: 64px;
+  flex: none;
+  box-sizing: border-box;
+  padding: 6px 0;
+  border: 3px solid var(--primaryBlue);
+  border-radius: 6px;
+  background: var(--primaryBlue);
+  color: var(--white);
+  font-family: var(--font-sans);
+  line-height: 1.1;
+  text-align: center;
+}
+
+.event-date-block-today {
+  border-color: var(--primaryRed);
+  background: var(--primaryRed);
+}
+
+.event-date-block-outline {
+  padding: 4px 0;
+  background: var(--white);
+  color: var(--primaryBlue);
+}
+
+.event-date-block-mon {
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-section);
+}
+
+.event-date-block-day {
+  font-size: 1.6rem;
+  font-weight: var(--fw-bold);
+}
+
+.event-date-block-outline .event-date-block-day {
+  font-size: 1.5rem;
+}
+
+.event-date-block-dow {
+  font-size: 10.5px;
+  font-weight: var(--fw-bold);
+}
+
+@media (max-width: 480px) {
+  .event-date-block {
+    width: 54px;
+  }
+
+  .event-date-block-day {
+    font-size: 1.35rem;
+  }
+}
